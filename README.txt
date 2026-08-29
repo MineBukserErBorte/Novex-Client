@@ -1,18 +1,72 @@
-NOVEX FEATURE FILES
+# Novex Client
 
-These are individual drop-in files for the current Novex Client project.
-No ZIP is included.
+Novex Client is a Minecraft launcher/client focused on providing a simple and modern way to manage Minecraft instances, mods, modpacks, resource packs, and more.
 
-1. Copy src/* into your project's src folder.
-2. Copy electron/* into your project's electron folder.
-3. Copy .env.example to .env and fill in your Supabase URL + anon key if you want Novex accounts/friends/chat.
-4. Run supabase_schema.sql in Supabase SQL Editor.
-5. Run npm run build.
+> **Novex Client is currently in beta.**
+> Features may change, and bugs may occur.
 
-Important:
-- The existing node_modules in the uploaded project were incomplete on the build environment; your local project should run npm install if Vite/Rollup complains.
-- Modrinth search/install works without a Modrinth API key.
-- Accounts/friends/chat require a free Supabase project and the two VITE_SUPABASE_* values.
-- Modpack browsing UI is included, but full .mrpack extraction/import is intentionally not enabled yet because it needs a proper archive/dependency pipeline.
-- The instance editor includes Overview, Mods, Resource Packs, Shaders, Worlds, Files and Settings tabs. Resource Packs/Shaders/Worlds currently use the file browser rooted at the instance; they will be specialized later.
-- Java auto-install is not enabled in this batch; the existing launcher still handles Java detection.
+---
+
+## Features
+
+- Minecraft instance management
+- Minecraft version installation
+- Fabric support
+- Mod installation through Modrinth
+- Modpack installation through Modrinth
+- Resource pack installation through Modrinth
+- Favorite mod installation
+- Instance file manager
+- Minecraft launch and stop controls
+- Minecraft console
+- Installation progress tracking
+- Novex account system
+- Supabase-powered account/database system
+- Modern desktop interface built with React
+
+More features are planned for future versions.
+
+---
+
+## Screenshots
+
+Screenshots will be added here as Novex develops.
+
+---
+
+## Download
+
+Official releases are available through the Novex Client release page.
+
+**Windows:**  
+Download the latest `.exe` installer from the Releases section.
+
+> Windows may display a Microsoft Defender SmartScreen warning because Novex Client is currently unsigned and is a new application without an established reputation.
+>
+> This warning does **not** automatically mean Novex Client is malicious.
+
+Only download Novex Client from official Novex sources.
+
+---
+
+## Source Code
+
+Novex Client's source code is publicly available so users can inspect how the client works.
+
+You can review the source code directly in this repository.
+
+Users are welcome to inspect the code and check it for malicious or suspicious behavior.
+
+**Please note:** The Novex Client license still applies to all source code in this repository.
+
+---
+
+## Security
+
+Security and transparency are important to Novex Client.
+
+The source code is publicly available for inspection.
+
+If you discover a security vulnerability, please report it privately rather than publicly posting sensitive details.
+
+### Never share
