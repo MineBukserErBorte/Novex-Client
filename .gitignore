@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+dist-electron/
+release/
+out/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Authentication
+*.token
+tokens/
+auth-cache/
+msal-cache/
+.minecraft-auth/
+
+# Logs
+*.log
+logs/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Electron/local application data
+userdata/
+userData/
+
+# Temporary files
+tmp/
+temp/
