@@ -3880,3 +3880,93 @@ input[type="file"]::file-selector-button {
     }
 
 }
+/* Account/settings/legal additions reuse the existing cards and controls. */
+.minecraft-accounts, .launcher-settings, .legal-section { padding: 20px; margin-bottom: 20px; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.minecraft-account-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #30343a; }
+.minecraft-account-row p { margin: 5px 0; }
+.minecraft-head { width: 48px; height: 48px; background-size: 384px; background-position: -48px -48px; image-rendering: pixelated; flex-shrink: 0; }
+.launcher-settings label, .minecraft-accounts label { display: block; margin: 14px 0; }
+.launcher-settings select, .minecraft-accounts select { max-width: 100%; margin-left: 10px; }
+.legal-section article { line-height: 1.7; max-width: 900px; }
+.legal-section pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.legal-section h4 { margin: 22px 0 6px; }
+.legal-welcome { max-width: 1040px; margin: auto; padding: 40px 30px; height: 100vh; overflow-y: auto; }
+.legal-welcome > label { display: block; margin: 24px 0; }
+.legal-welcome button:disabled { opacity: .4; cursor: not-allowed; }
+.minecraft-accounts button, .launcher-settings button, .legal-section button, .legal-welcome button {
+    padding: 9px 13px; border: 1px solid #34313e; border-radius: 8px;
+    background: #19171f; color: #e7e5ed; font: inherit; cursor: pointer;
+}
+.minecraft-accounts button:hover, .launcher-settings button:hover, .legal-section button:hover, .legal-welcome button:hover { border-color: #8b5cf6; background: #25202f; }
+.minecraft-accounts button:disabled, .launcher-settings button:disabled { opacity: .5; cursor: not-allowed; }
+.legal-welcome input[type="checkbox"], .launcher-settings input[type="checkbox"] { width: 17px; height: 17px; margin: 0; accent-color: #8b5cf6; flex-shrink: 0; }
+.legal-welcome > label { display: flex; align-items: center; gap: 12px; line-height: 1.6; }
+.legal-welcome > button { background: #7c3aed; border-color: #8b5cf6; padding: 11px 24px; font-weight: 600; }
+.legal-welcome > p { color: #a6a0b2; line-height: 1.7; }
+.legal-section button[aria-pressed="true"] { background: #312044; border-color: #8b5cf6; }
+
+/* Home hero keeps the library below it stationary. */
+.home-carousel { min-width: 0; }
+.carousel-viewport { overflow: hidden; border-radius: 20px; }
+.carousel-track { display: flex; transition: transform .45s ease; align-items: stretch; }
+.carousel-panel { flex: 0 0 100%; min-width: 0; }
+.carousel-panel > .home-hero { height: 100%; min-height: 330px; box-sizing: border-box; margin: 0; }
+.carousel-controls { display:flex; align-items:center; gap:12px; padding:12px 4px; }
+.carousel-controls button { color:#e7eaf2; background:#171c28; border:1px solid #343d51; border-radius:8px; padding:7px 11px; cursor:pointer; }
+.carousel-status { flex:1; color:#a4aec2; font-size:12px; }
+.carousel-dots { display:flex; gap:7px; }
+.carousel-dots button { width:9px; height:9px; padding:0; border-radius:50%; background:#495064; }
+.carousel-dots button[aria-current="true"] { background:#7b8aff; }
+.remote-slide h1 { font-size:clamp(26px,3vw,42px); overflow-wrap:anywhere; }
+.remote-slide .home-hero-copy { flex:1; min-width:0; }
+.remote-slide p { white-space:pre-line; overflow-wrap:anywhere; }
+.slide-image { width:36%; max-height:300px; object-fit:cover; border-radius:16px; }
+.slide-art { width:28%; font-size:100px; font-weight:900; color:#7d8aff; opacity:.3; text-align:center; }
+.sponsored-label { display:inline-block; border:1px solid #a99457; border-radius:6px; padding:5px 9px; color:#daca94; }
+.admin-layout { display:grid; grid-template-columns:minmax(200px,1fr) minmax(300px,2fr); gap:20px; }
+.admin-list,.admin-form { padding:20px; }
+.admin-slide-row { width:100%; display:flex; flex-direction:column; gap:6px; text-align:left; padding:14px; margin-top:10px; border:1px solid #303748; background:#171c28; color:#e7eaf2; border-radius:10px; cursor:pointer; }
+.admin-slide-row.selected { border-color:#7b8aff; }
+.admin-slide-row span { color:#a4aec2; font-size:12px; }
+.admin-form label { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.admin-form input,.admin-form textarea,.admin-form select { padding:10px; border-radius:8px; border:1px solid #343d51; background:#101522; color:#e7eaf2; width:100%; box-sizing:border-box; }
+.admin-form input[type="checkbox"] { width:auto; }
+.admin-inline { display:flex; gap:24px; align-items:center; }
+.admin-home > .home-hero { margin-top:14px; }
+.update-card { padding:20px; margin-bottom:20px; border:1px solid #6c7bef; border-radius:14px; background:rgba(108,123,239,.09); }
+.update-card p { color:#a4aec2; }
+@media (max-width:850px) { .admin-layout { grid-template-columns:1fr; } .slide-image { width:28%; } .slide-art { display:none; } }
+@media (prefers-reduced-motion:reduce) { .carousel-track { transition:none; } }
+
+.admin-home { padding:32px; }
+.admin-list { align-self:start; }
+.admin-form input[type="checkbox"] { width:18px; height:18px; min-height:0; padding:0; }
+
+/* Focused consistency fixes; preserve the established dark visual design. */
+:root { color-scheme: dark; }
+button, input, textarea, select { font: inherit; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #a78bfa; outline-offset: 3px; }
+.settings-field { display: flex; flex-direction: column; gap: 9px; margin: 16px 0; max-width: 580px; }
+.content-source-control { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.content-source-control .novex-select { width: 285px; max-width: 100%; }
+.provider-badge { font-size: 11px; padding: 5px 9px; color: #b8b8c2; border: 1px solid #33333c; border-radius: 7px; }
+.provider-setup { padding: 24px; max-width: 750px; line-height: 1.7; }
+.provider-setup p { color: #b4b4bf; }
+.novex-select-trigger { min-height: 40px; }
+.novex-select-menu { max-height: 280px; overflow-y: auto; z-index: 40; }
+.novex-select-value, .novex-select-option span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.novex-select-option:focus-visible { background: #292833; outline-offset: -2px; }
+.minecraft-account-row > div { min-width: 0; }
+.minecraft-account-row code { overflow-wrap: anywhere; }
+.minecraft-accounts button, .launcher-settings button, .legal-section button, .carousel-controls > button { min-height: 36px; font-size: 13px; border-radius: 9px; }
+.minecraft-accounts button:hover:not(:disabled), .launcher-settings button:hover:not(:disabled), .carousel-controls > button:hover:not(:disabled) { filter: brightness(1.18); }
+.admin-form textarea { resize: vertical; min-height: 100px; }
+.admin-home { min-width: 0; }
+.admin-slide-row strong { overflow-wrap: anywhere; }
+.admin-inline { flex-wrap: wrap; }
+.page > .card { padding: 22px; margin-bottom: 18px; }
+.page > .card > button:not([class]) { padding: 9px 15px; min-height: 38px; border: 1px solid #36363f; background: #222229; color: #eeeeef; border-radius: 9px; }
+.page input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; accent-color: #a78bfa; }
+* { scrollbar-width: thin; scrollbar-color: #383840 #101012; }

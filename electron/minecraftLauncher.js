@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { rulesAllowed, discoverJava } from "./platform.js";
 import { getSettings } from "./settings.js";
 import { resolveInside, safeSegment } from "./pathSafety.js";
@@ -6,6 +7,10 @@ import fs from "fs/promises";
 import path from "path";
 
 let minecraftProcess = null;
+let preparing = false;
+let lastState = "stopped";
+export function getMinecraftState() { return lastState; }
+export function releaseMinecraft() { if (minecraftProcess) { minecraftProcess.unref(); if (minecraftProcess.connected) minecraftProcess.disconnect(); } }
 
 
 /*
@@ -266,6 +271,7 @@ async function buildClasspath(
         versionData.id;
 
 
+    safeSegment(clientVersion, "client version");
     const clientJar =
         path.join(
             instanceDirectory,
@@ -542,6 +548,7 @@ async function loadVersionProfile(
     for (
         const profileVersion of uniqueVersions
     ) {
+        safeSegment(profileVersion, "launch profile");
         const versionFile =
             path.join(
                 instanceDirectory,
@@ -587,7 +594,12 @@ async function loadVersionProfile(
  * ============================================================
  */
 
-export async function launchMinecraft({
+export async function launchMinecraft(options) {
+    if (preparing || minecraftProcess) throw new Error('Minecraft is already starting or running.');
+    preparing = true;
+    try { return await launchPrepared(options); } finally { preparing = false; }
+}
+async function launchPrepared({
     instanceDirectory,
     version,
     loader = "vanilla",
@@ -596,6 +608,7 @@ export async function launchMinecraft({
         "00000000-0000-0000-0000-000000000000",
     accessToken = "0",
     userType = "legacy",
+    xuid = "",
     onLog,
     onState
 }) {
@@ -635,6 +648,9 @@ export async function launchMinecraft({
      * The installation file is optional for
      * vanilla, but recommended.
      */
+
+    const originalState = onState;
+    onState = state => { lastState = state; originalState?.(state); };
 
     const installedMinecraftVersion =
         installation?.minecraftVersion ||
@@ -711,7 +727,7 @@ export async function launchMinecraft({
         user_properties: '{}',
         auth_session: accessToken,
         clientid: '4df8fc45-5d5d-4d5d-ad5e-c98203479c15',
-        auth_xuid: '',
+        auth_xuid: xuid,
 
 
         auth_player_name:
@@ -778,9 +794,7 @@ export async function launchMinecraft({
      * Native library path.
      */
 
-    jvmArguments.push(
-        `-Djava.library.path=${nativesDirectory}`
-    );
+    if (!jvmArguments.some(arg => arg.startsWith('-Djava.library.path='))) jvmArguments.push(`-Djava.library.path=${nativesDirectory}`);
 
 
     /*
@@ -800,13 +814,7 @@ export async function launchMinecraft({
      * Classpath.
      */
 
-    jvmArguments.push(
-        "-cp"
-    );
-
-    jvmArguments.push(
-        classpath
-    );
+    if (!jvmArguments.includes("-cp") && !jvmArguments.includes("-classpath")) jvmArguments.push("-cp", classpath);
 
 
     /*
@@ -1050,203 +1058,42 @@ export async function launchMinecraft({
      * ========================================================
      */
 
-    minecraftProcess =
-        spawn(
-            java,
-            finalArguments,
-            {
-                cwd:
-                    instanceDirectory,
-
-                detached: process.platform !== "win32",
-                windowsHide:
-                    true,
-
-                stdio: [
-                    "pipe",
-                    "pipe",
-                    "pipe"
-                ]
-            }
-        );
-
-
-    /*
-     * ========================================================
-     * STDOUT
-     * ========================================================
-     */
-
-    const child = minecraftProcess;
-    for (const stream of [child.stdout, child.stderr]) {
-        stream.setEncoding('utf8');
-        let pending = '';
-        stream.on('data', chunk => {
-            pending += chunk;
-            let end;
-            while ((end = pending.indexOf('\n')) !== -1) {
-                onLog?.(pending.slice(0, end + 1));
-                pending = pending.slice(end + 1);
-            }
-            if (pending.length > 1024 * 1024) pending = '[Novex] Oversized log line omitted.';
-        });
-        stream.on('end', () => { if (pending) onLog?.(pending); });
-    }
-
-    minecraftProcess.on(
-        "spawn",
-        () => {
-
-            onState?.(
-                "running"
-            );
-
-            onLog?.(
-                "[Novex] Minecraft process started."
-            );
-
-        }
-    );
-
-
-    /*
-     * ========================================================
-     * PROCESS ERROR
-     * ========================================================
-     */
-
-    minecraftProcess.on(
-        "error",
-        error => {
-
-            onLog?.(
-                `[Novex] Failed to start Minecraft: ${error.message}`
-            );
-
-            onState?.(
-                "crashed"
-            );
-
-            minecraftProcess = null;
-
-        }
-    );
-
-
-    /*
-     * ========================================================
-     * PROCESS CLOSED
-     * ========================================================
- */
-
-    minecraftProcess.on(
-        "close",
-        code => {
-
-            if (code === 0) {
-
-                onLog?.(
-                    "[Novex] Minecraft closed normally."
-                );
-
-                onState?.(
-                    "stopped"
-                );
-
-            } else {
-
-                onLog?.(
-                    `[Novex] Minecraft exited with code ${code}.`
-                );
-
-                onState?.(
-                    "crashed"
-                );
-
-            }
-
-            minecraftProcess = null;
-
-        }
-    );
-
-
-    await new Promise((resolve, reject) => {
-        child.once('spawn', resolve);
-        child.once('error', error => reject(new Error(error.code === 'EACCES' ? 'Java is not executable. Check its Linux file permissions.' : 'Minecraft could not start. Check Java and the instance logs.')));
+    const supervisor = spawn(process.execPath, [fileURLToPath(new URL('./gameSupervisor.cjs', import.meta.url))], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        detached: true, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc']
     });
+    minecraftProcess = supervisor;
+    return await new Promise((resolve, reject) => {
+        let started = false;
+        let closed = false;
+        const finish = (state, message) => {
+            if (closed) return;
+            closed = true;
+            if (minecraftProcess === supervisor) minecraftProcess = null;
+            onLog?.(message);
+            onState?.(state);
+            if (!started) reject(new Error(message));
+        };
+        supervisor.on('message', message => {
+            if (message.type === 'log') onLog?.(message.text);
+            if (message.type === 'started') { started = true; onState?.('running'); resolve(true); }
+            if (message.type === 'error') finish('crashed', message.code === 'EACCES' ? 'Java is not executable. Check Linux file permissions.' : 'Minecraft could not start. Check Java and the instance.');
+            if (message.type === 'closed') finish(message.code === 0 || message.stopping ? 'stopped' : 'crashed', `[Novex] Minecraft exited (code ${message.code ?? message.signal}).`);
+        });
+        supervisor.once('error', () => finish('crashed', 'Minecraft process monitor could not start.'));
+        supervisor.once('exit', () => finish('crashed', '[Novex] Minecraft process monitor exited.'));
+        supervisor.send({ type: 'launch', executable: java, args: finalArguments, cwd: instanceDirectory, secret: accessToken }, error => {
+            if (error) finish('crashed', 'Minecraft process monitor could not receive launch settings.');
+        });
+    });
+}
+
+export function stopMinecraft(onLog, onState) {
+    if (!minecraftProcess?.connected) return false;
+    lastState = 'stopping';
+    onState?.('stopping');
+    onLog?.('[Novex] Stopping Minecraft...');
+    minecraftProcess.send({ type: 'stop' }, () => {});
     return true;
 }
-
-
-/*
- * ============================================================
- * STOP MINECRAFT
- * ============================================================
- */
-
-export function stopMinecraft(
-    onLog,
-    onState
-) {
-
-    if (!minecraftProcess) {
-        return false;
-    }
-
-    onState?.(
-        "stopping"
-    );
-
-    onLog?.(
-        "[Novex] Stopping Minecraft..."
-    );
-
-
-    if (
-        process.platform === "win32"
-    ) {
-
-        const killer = spawn(
-            "taskkill",
-            [
-                "/pid",
-                String(
-                    minecraftProcess.pid
-                ),
-                "/t",
-                "/f"
-            ],
-            {
-                windowsHide:
-                    true
-            }
-        );
-
-        killer.on('error', () => { minecraftProcess?.kill(); });
-    } else {
-        const child = minecraftProcess;
-        try { process.kill(-child.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
-        const timer = setTimeout(() => {
-            if (minecraftProcess === child) {
-                try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
-            }
-        }, 5000);
-        timer.unref();
-        child.once('close', () => clearTimeout(timer));
-    }
-
-
-    return true;
-}
-
-
-/*
- * ============================================================
- * IS MINECRAFT RUNNING
- * ============================================================
- */
-
-export function isMinecraftRunning() {
-    return minecraftProcess !== null;
-}
+export function isMinecraftRunning() { return preparing || minecraftProcess !== null; }

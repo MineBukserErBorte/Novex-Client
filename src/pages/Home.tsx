@@ -1,3 +1,5 @@
+import UpdateNotice from "../components/UpdateNotice";
+import HomeCarousel from "../components/HomeCarousel";
 import type {
     MinecraftInstance
 } from "../services/instances";
@@ -26,7 +28,7 @@ export default function Home({
 
         <div className="home">
 
-            <section className="home-hero">
+            <UpdateNotice /><HomeCarousel><section className="home-hero">
 
                 <div className="home-hero-copy">
 
@@ -95,7 +97,7 @@ export default function Home({
 
                 </div>
 
-            </section>
+            </section></HomeCarousel>
 
 
             <section className="section">

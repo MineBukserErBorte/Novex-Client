@@ -1,3 +1,12 @@
+import { checkUpdates, openUpdate } from './updates.js';
+import { pathToFileURL } from 'node:url';
+import { getSettings, chooseJava, resetJava, chooseInstanceStorage, setBackgroundSettings } from './settings.js';
+import { safeSegment } from './pathSafety.js';
+import { diagnostic } from './diagnostics.js';
+import { readSecure, writeSecure } from './secureStore.js';
+import { AUTH_SCHEME } from './authProtocol.js';
+import { loginMicrosoft, cancelMicrosoftLogin, handleMicrosoftCallback, getMinecraftAccounts, selectMinecraftAccount, removeMinecraftAccount, refreshMinecraftAccount, addLocalAccount, getLaunchIdentity } from './minecraftAccounts.js';
+import { initializeLifecycle, attachMainWindow, updateLifecycle, openNovex } from './lifecycle.js';
 import {
     app,
     BrowserWindow,
@@ -8,7 +17,8 @@ import {
 import {
     launchMinecraft,
     stopMinecraft,
-    isMinecraftRunning
+    isMinecraftRunning,
+    getMinecraftState
 } from "./minecraftLauncher.js";
 
 import path from "path";
@@ -17,7 +27,8 @@ import { fileURLToPath } from "url";
 import {
     createInstanceDirectory,
     deleteInstanceDirectory,
-    getInstanceDirectory
+    getInstanceDirectory,
+    validateInstanceDirectory
 } from "./instanceManager.js";
 
 import {
@@ -54,6 +65,76 @@ const __dirname =
  */
 
 let consoleWindow = null;
+let mainWindow = null;
+let activeLaunch = null;
+let launchPending = false;
+const trustedContents = new WeakSet();
+const originalHandle = ipcMain.handle.bind(ipcMain);
+function handle(channel, listener) {
+    originalHandle(channel, async (event, ...args) => {
+        const expected = app.isPackaged ? pathToFileURL(path.join(__dirname, '../dist/index.html')).href : 'http://localhost:5173/';
+        if (!trustedContents.has(event.sender) || event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Untrusted IPC sender.');
+        try {
+            if (args.some(arg => typeof arg === 'string' && arg.length > 2 * 1024 * 1024)) throw new Error('Input is too large.');
+            return await listener(event, ...args);
+        } catch (error) {
+            void diagnostic({ stage: channel, serviceCode: error.code || 'operation_failed' });
+            const friendly = error.code === 'EACCES' || error.code === 'EPERM' ? 'Permission denied. Choose a writable location and check file permissions.' : error.name === 'AbortError' ? 'Operation cancelled.' : error.message === 'fetch failed' ? 'Network unavailable. Check your connection and try again.' : String(error.message || 'Operation failed.').split('\n')[0].slice(0, 400);
+            throw new Error(friendly);
+        }
+    });
+}
+function broadcast(channel, data) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+}
+function gameLog(message) { broadcast('minecraft:log', message); sendConsoleLog(message); }
+function gameState(state) {
+    broadcast('minecraft:state', state);
+    if (['stopped', 'crashed'].includes(state)) activeLaunch = null;
+    updateLifecycle();
+}
+function launchOptions(options) {
+    if (!options || typeof options !== 'object') throw new Error('Invalid Minecraft options.');
+    safeSegment(options.version, 'Minecraft version');
+    if (!['vanilla', 'fabric', 'quilt', 'forge', 'neoforge'].includes(options.loader)) throw new Error('Invalid loader.');
+    if (options.loaderVersion) safeSegment(options.loaderVersion, 'loader version');
+    return { instanceDirectory: validateInstanceDirectory(options.instanceDirectory), version: options.version, loader: options.loader, loaderVersion: options.loaderVersion };
+}
+
+handle('external:open', (_event, value) => {
+    if (typeof value !== 'string' || value.length > 2048 || /[\u0000-\u0020\u007f]/.test(value)) throw new Error('Invalid link.');
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Only HTTPS links are allowed.');
+    return shell.openExternal(url.href);
+});
+handle('updates:check', () => checkUpdates());
+handle('updates:open', () => openUpdate());
+handle('settings:get', () => getSettings());
+handle('settings:java', () => chooseJava());
+handle('settings:java-reset', () => resetJava());
+handle('settings:storage', () => chooseInstanceStorage());
+handle('settings:background', (_event, input) => setBackgroundSettings(input));
+handle('minecraft-accounts:list', () => getMinecraftAccounts());
+handle('minecraft-accounts:login', () => loginMicrosoft(message => broadcast('minecraft-accounts:progress', message)));
+handle('minecraft-accounts:cancel', () => cancelMicrosoftLogin());
+for (const [channel, action] of [['select', selectMinecraftAccount], ['remove', removeMinecraftAccount], ['refresh', refreshMinecraftAccount]]) {
+    handle('minecraft-accounts:' + channel, (_event, id) => { if (typeof id !== 'string' || !/^(local-)?[a-f0-9]{32}$/i.test(id)) throw new Error('Invalid Minecraft account ID.'); return action(id); });
+}
+handle('minecraft-accounts:local', (_event, name) => addLocalAccount(name));
+handle('minecraft:status', () => ({ state: getMinecraftState(), ...activeLaunch }));
+// Fixed-purpose Supabase session storage. Minecraft credentials never use this IPC.
+handle('social-session:read', () => readSecure('supabase-session'));
+handle('social-session:write', (_event, value) => { if (typeof value !== 'string' || value.length > 131072) throw new Error('Invalid social session.'); return writeSecure('supabase-session', value); });
+
+const primaryInstance = app.requestSingleInstanceLock();
+if (!primaryInstance) app.quit();
+app.on('second-instance', (_event, argv) => {
+    for (const value of argv) if (value.startsWith(AUTH_SCHEME + '://')) handleMicrosoftCallback(value);
+    openNovex();
+});
+app.on('open-url', (event, url) => { event.preventDefault(); handleMicrosoftCallback(url); });
+initializeLifecycle({ createWindow, icon: path.join(__dirname, '../public/novex.png'), log: gameLog, state: gameState });
+
 
 
 /*
@@ -709,7 +790,7 @@ function createWindow() {
             icon:
                 path.join(
                     __dirname,
-                    "../public/novex.ico"
+                    process.platform === "win32" ? "../public/novex.ico" : "../public/novex.png"
                 ),
 
             webPreferences: {
@@ -717,7 +798,7 @@ function createWindow() {
                 preload:
                     path.join(
                         __dirname,
-                        "preload.js"
+                        "preload.cjs"
                     ),
 
                 contextIsolation:
@@ -732,7 +813,7 @@ function createWindow() {
                  */
 
                 sandbox:
-                    false
+                    true
 
             }
 
@@ -744,6 +825,16 @@ function createWindow() {
      * File / Edit / View / Window / Help menu.
      */
 
+    mainWindow = win;
+    trustedContents.add(win.webContents);
+    attachMainWindow(win);
+    win.webContents.on('will-navigate', event => event.preventDefault());
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        try { if (new URL(url).protocol === 'https:') void shell.openExternal(url).catch(() => {}); } catch {}
+        return { action: 'deny' };
+    });
+    win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    win.webContents.session.setPermissionCheckHandler(() => false);
     win.removeMenu();
 
 
@@ -764,7 +855,7 @@ function createWindow() {
             "http://localhost:5173"
         );
 
-        win.webContents.openDevTools();
+
 
     }
 
@@ -775,7 +866,7 @@ function createWindow() {
  * CREATE INSTANCE
  */
 
-ipcMain.handle(
+handle(
 
     "instances:create",
 
@@ -797,7 +888,7 @@ ipcMain.handle(
  * DELETE INSTANCE
  */
 
-ipcMain.handle(
+handle(
 
     "instances:delete",
 
@@ -806,9 +897,8 @@ ipcMain.handle(
         instance
     ) => {
 
-        await deleteInstanceDirectory(
-            instance
-        );
+        if (activeLaunch?.instanceDirectory === await getInstanceDirectory(instance)) throw new Error('Stop Minecraft before deleting its instance.');
+        await deleteInstanceDirectory(instance);
 
         return true;
 
@@ -821,7 +911,7 @@ ipcMain.handle(
  * GET INSTANCE DIRECTORY
  */
 
-ipcMain.handle(
+handle(
 
     "instances:getDirectory",
 
@@ -843,7 +933,7 @@ ipcMain.handle(
  * OPEN INSTANCE FOLDER
  */
 
-ipcMain.handle(
+handle(
 
     "instances:openFolder",
 
@@ -884,7 +974,7 @@ ipcMain.handle(
  * OPEN MINECRAFT CONSOLE
  */
 
-ipcMain.handle(
+handle(
 
     "minecraft:console-open",
 
@@ -909,7 +999,7 @@ ipcMain.handle(
  * CLOSE MINECRAFT CONSOLE
  */
 
-ipcMain.handle(
+handle(
 
     "minecraft:console-close",
 
@@ -935,7 +1025,7 @@ ipcMain.handle(
  * INSTALL MINECRAFT
  */
 
-ipcMain.handle(
+handle(
 
     "minecraft:install",
 
@@ -952,7 +1042,7 @@ ipcMain.handle(
 
         return await installMinecraft({
 
-            ...options,
+            ...launchOptions(options),
 
             onProgress:
                 progress => {
@@ -1008,174 +1098,30 @@ function sendInstallProgress(
  * LAUNCH MINECRAFT
  */
 
-ipcMain.handle(
-
-    "minecraft:launch",
-
-    async (
-        event,
-        options
-    ) => {
-
-        const window =
-            BrowserWindow.fromWebContents(
-                event.sender
-            );
-
-
-        return await launchMinecraft({
-
-            ...options,
-
-
-            onLog:
-                message => {
-
-                    if (
-
-                        window &&
-                        !window.isDestroyed()
-
-                    ) {
-
-                        window.webContents.send(
-
-                            "minecraft:log",
-
-                            message
-
-                        );
-
-                    }
-
-
-                    /*
-                     * Also send the log
-                     * to the separate
-                     * Minecraft console.
-                     */
-
-                    sendConsoleLog(
-                        message
-                    );
-
-                },
-
-
-            onState:
-                state => {
-
-                    if (
-
-                        window &&
-                        !window.isDestroyed()
-
-                    ) {
-
-                        window.webContents.send(
-
-                            "minecraft:state",
-
-                            state
-
-                        );
-
-                    }
-
-                }
-
-        });
-
-    }
-
-);
+handle('minecraft:launch', async (_event, options) => {
+    if (launchPending || isMinecraftRunning()) throw new Error('Minecraft is already starting or running.');
+    launchPending = true;
+    try {
+        const validated = launchOptions(options);
+        const identity = await getLaunchIdentity();
+        activeLaunch = { instanceDirectory: validated.instanceDirectory, instanceId: typeof options.instanceId === 'string' ? options.instanceId : null, accountId: identity.accountId };
+        return await launchMinecraft({ ...validated, ...identity, onLog: gameLog, onState: gameState });
+    } catch (error) { activeLaunch = null; throw error; }
+    finally { launchPending = false; updateLifecycle(); }
+});
 
 
 /*
  * STOP MINECRAFT
  */
 
-ipcMain.handle(
-
-    "minecraft:stop",
-
-    async (
-        event
-    ) => {
-
-        const window =
-            BrowserWindow.fromWebContents(
-                event.sender
-            );
-
-
-        return stopMinecraft(
-
-            message => {
-
-                if (
-
-                    window &&
-                    !window.isDestroyed()
-
-                ) {
-
-                    window.webContents.send(
-
-                        "minecraft:log",
-
-                        message
-
-                    );
-
-                }
-
-
-                /*
-                 * Keep the console updated
-                 * while Minecraft is stopping.
-                 */
-
-                sendConsoleLog(
-                    message
-                );
-
-            },
-
-
-            state => {
-
-                if (
-
-                    window &&
-                    !window.isDestroyed()
-
-                ) {
-
-                    window.webContents.send(
-
-                        "minecraft:state",
-
-                        state
-
-                    );
-
-                }
-
-            }
-
-        );
-
-    }
-
-);
-
+handle('minecraft:stop', () => stopMinecraft(gameLog, gameState));
 
 /*
  * CANCEL MINECRAFT INSTALLATION
  */
 
-ipcMain.handle(
+handle(
 
     "minecraft:cancel-install",
 
@@ -1192,7 +1138,7 @@ ipcMain.handle(
  * CHECK IF MINECRAFT IS RUNNING
  */
 
-ipcMain.handle(
+handle(
 
     "minecraft:is-running",
 
@@ -1209,7 +1155,7 @@ ipcMain.handle(
  * FILE MANAGER
  */
 
-ipcMain.handle(
+handle(
 
     "files:list",
 
@@ -1235,7 +1181,7 @@ ipcMain.handle(
 );
 
 
-ipcMain.handle(
+handle(
 
     "files:createFolder",
 
@@ -1264,7 +1210,7 @@ ipcMain.handle(
 );
 
 
-ipcMain.handle(
+handle(
 
     "files:delete",
 
@@ -1293,7 +1239,7 @@ ipcMain.handle(
 );
 
 
-ipcMain.handle(
+handle(
 
     "files:rename",
 
@@ -1324,7 +1270,7 @@ ipcMain.handle(
 );
 
 
-ipcMain.handle(
+handle(
 
     "files:readText",
 
@@ -1350,7 +1296,7 @@ ipcMain.handle(
 );
 
 
-ipcMain.handle(
+handle(
 
     "files:writeText",
 
@@ -1385,7 +1331,7 @@ ipcMain.handle(
  * MODRINTH MOD INSTALLATION
  */
 
-ipcMain.handle(
+handle(
 
     "mods:install",
 
@@ -1428,7 +1374,7 @@ ipcMain.handle(
  * INSTALL FAVORITE MODS
  */
 
-ipcMain.handle(
+handle(
 
     "mods:installFavorites",
 
@@ -1468,7 +1414,7 @@ ipcMain.handle(
  * MODPACK INSTALLATION
  */
 
-ipcMain.handle(
+handle(
 
     "modpacks:install",
 
@@ -1492,7 +1438,9 @@ ipcMain.handle(
 
             projectId,
 
-            versionId
+            versionId,
+            gameVersion: instance.minecraftVersion,
+            loader: instance.loader
 
         });
 
@@ -1505,7 +1453,7 @@ ipcMain.handle(
  * RESOURCE PACK INSTALLATION
  */
 
-ipcMain.handle(
+handle(
 
     "resourcepacks:install",
 
@@ -1546,6 +1494,8 @@ ipcMain.handle(
  */
 
 app.whenReady().then(() => {
+    if (!primaryInstance) return;
+    // Register and verify the callback handler immediately before interactive login.
 
     createWindow();
 
@@ -1573,26 +1523,3 @@ app.whenReady().then(() => {
     );
 
 });
-
-
-/*
- * CLOSE APP
- */
-
-app.on(
-
-    "window-all-closed",
-
-    () => {
-
-        if (
-            process.platform !== "darwin"
-        ) {
-
-            app.quit();
-
-        }
-
-    }
-
-);

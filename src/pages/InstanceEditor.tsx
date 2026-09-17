@@ -1,3 +1,4 @@
+import ContentSource from "../components/ContentSource";
 import { useState } from "react";
 import Mods from "./Mods";
 import Files from "./Files";
@@ -287,7 +288,7 @@ export default function InstanceEditor({
                 {/* SHADERS */}
 
                 {tab === "shaders" && (
-                    <div
+                    <ContentSource kind="shader"><div
                         style={{
                             maxWidth: 850
                         }}
@@ -362,7 +363,7 @@ export default function InstanceEditor({
 
                         </div>
 
-                    </div>
+                    </div></ContentSource>
                 )}
 
 

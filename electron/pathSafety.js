@@ -3,7 +3,7 @@ import path from 'node:path';
 
 export function safeSegment(value, label = 'name') {
     if (typeof value !== 'string' || !value || value.length > 240 ||
-        /[<>:"/\\|?*\x00-\x1f]/.test(value) || value === '.' || value === '..' || /[. ]$/.test(value)) {
+        /[<>:"/\\|?*\x00-\x1f]/.test(value) || value === '.' || value === '..' || /[. ]$/.test(value) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(value)) {
         throw new Error(`Invalid ${label}.`);
     }
     return value;

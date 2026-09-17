@@ -1,3 +1,4 @@
+import ContentSource from "../components/ContentSource";
 import { useEffect, useState } from "react";
 
 import NovexSelect from "../components/NovexSelect";
@@ -18,7 +19,7 @@ type Props = {
     instances: MinecraftInstance[];
 };
 
-export default function Modpacks({
+function ModrinthModpacks({
     instances
 }: Props) {
     const [packs, setPacks] =
@@ -420,4 +421,7 @@ function formatLoader(
         ? "NeoForge"
         : loader.charAt(0).toUpperCase() +
           loader.slice(1);
+}
+export default function Modpacks(props: Props) {
+    return <ContentSource kind="modpack"><ModrinthModpacks {...props} /></ContentSource>;
 }

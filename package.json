@@ -9,19 +9,29 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "tsc && vite build",
+    "build": "npm run typecheck && npm run licenses && vite build",
     "preview": "vite preview",
     "electron": "electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "typecheck": "tsc -b --pretty false",
+    "check:electron": "node scripts/check-electron.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "licenses": "node scripts/generate-notices.mjs",
+    "predev": "npm run licenses",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage rpm deb --x64 --publish never"
   },
   "dependencies": {
+    "@azure/msal-node": "6.0.1",
     "@supabase/supabase-js": "^2.112.4",
     "adm-zip": "^0.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "semver": "7.7.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@eslint/js": "^9.30.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
@@ -47,17 +57,79 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "public/novex.*",
+      "LICENSE"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/novex.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "perMachine": false
+    },
+    "executableName": "novex",
+    "protocols": [
+      {
+        "name": "Novex Microsoft sign-in",
+        "schemes": [
+          "msal4df8fc45-5d5d-4d5d-ad5e-c98203479c15"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/novex.png",
+      "category": "Game",
+      "maintainer": "Wild",
+      "synopsis": "Independent Minecraft Java launcher",
+      "desktop": {
+        "entry": {
+          "Name": "Novex Client",
+          "Comment": "Manage and launch Minecraft Java instances",
+          "MimeType": "x-scheme-handler/msal4df8fc45-5d5d-4d5d-ad5e-c98203479c15;"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "artifactName": "Novex-Client-${version}-${os}-${arch}.${ext}",
+    "deb": {
+      "packageName": "novex-client"
+    },
+    "rpm": {
+      "packageName": "novex-client"
     }
-  }
+  },
+  "desktopName": "novex.desktop",
+  "license": "MIT"
 }

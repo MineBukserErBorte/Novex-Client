@@ -1,3 +1,5 @@
+import type { UpdateStatus } from "../components/UpdateNotice";
+import type { MinecraftAccountsState, LauncherSettings } from "../services/minecraftAccounts";
 import type {
     MinecraftInstance
 } from "../services/instances";
@@ -61,7 +63,26 @@ declare global {
 
         novex: {
 
-            version: string;
+            updates: { check: () => Promise<UpdateStatus>; open: () => Promise<void> };
+            openExternal: (url: string) => Promise<void>;
+            settings: {
+                get(): Promise<LauncherSettings>;
+                chooseJava(): Promise<LauncherSettings>;
+                resetJava(): Promise<LauncherSettings>;
+                chooseStorage(): Promise<LauncherSettings>;
+                setBackground(input: Pick<LauncherSettings, 'backgroundMode' | 'backgroundNotification'>): Promise<LauncherSettings>;
+            };
+            socialSession: { read(): Promise<string | null>; write(value: string): Promise<boolean> };
+            minecraftAccounts: {
+                list(): Promise<MinecraftAccountsState>;
+                login(): Promise<MinecraftAccountsState>;
+                cancel(): Promise<boolean>;
+                select(id: string): Promise<MinecraftAccountsState>;
+                remove(id: string): Promise<MinecraftAccountsState>;
+                refresh(id: string): Promise<MinecraftAccountsState>;
+                addLocal(name: string): Promise<MinecraftAccountsState>;
+                onProgress(callback: (message: string) => void): () => void;
+            };
 
 
             /*
@@ -268,6 +289,7 @@ declare global {
              */
 
             minecraft: {
+                status(): Promise<{ state: MinecraftState; instanceId?: string; instanceDirectory?: string; accountId?: string }>;
 
                 install(
 
@@ -350,14 +372,7 @@ declare global {
                         loader:
                             MinecraftInstance["loader"];
 
-                        username?:
-                            string;
-
-                        uuid?:
-                            string;
-
-                        accessToken?:
-                            string;
+                        instanceId?: string;
 
                     }
 

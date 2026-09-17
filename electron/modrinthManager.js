@@ -1,3 +1,5 @@
+import { validateModrinthVersion } from "./contentValidation.js";
+import { installMinecraft } from "./minecraftInstaller.js";
 import { secureFetch as fetch, verifyBuffer } from "./downloads.js";
 import { resolveInside } from "./pathSafety.js";
 import fs from "fs/promises";
@@ -59,11 +61,7 @@ async function download(
     }
 
 
-    return Buffer.from(
-
-        await response.arrayBuffer()
-
-    );
+    return verifyBuffer(Buffer.from(await response.arrayBuffer()), hashes);
 
 }
 
@@ -245,9 +243,9 @@ export async function installMod({
         }
 
 
-        installed.add(
-            cacheKey
-        );
+        validateModrinthVersion(version, id, gameVersion, loader);
+        if (installed.size >= 200) throw new Error('This mod has too many required dependencies.');
+        installed.add(cacheKey);
 
 
         /*
@@ -273,18 +271,15 @@ export async function installMod({
             }
 
 
-            if (
-                !dependency.project_id
-            ) {
-
-                continue;
-
+            let dependencyProject = dependency.project_id;
+            if (!dependencyProject && dependency.version_id) {
+                dependencyProject = (await json(`${API}/version/${encodeURIComponent(dependency.version_id)}`)).project_id;
             }
-
+            if (!dependencyProject) throw new Error('A required mod dependency has no project identity.');
 
             await install(
 
-                dependency.project_id,
+                dependencyProject,
 
                 dependency.version_id ||
                 null
@@ -441,7 +436,9 @@ export async function installModpack({
 
     projectId,
 
-    versionId
+    versionId,
+    gameVersion,
+    loader
 
 }) {
 
@@ -591,6 +588,24 @@ export async function installModpack({
 
     }
 
+
+    if (version.project_id !== projectId) throw new Error('Modpack version does not belong to the selected project.');
+    const dependencies = index.dependencies || {};
+    const loaderKeys = { 'fabric-loader': 'fabric', 'quilt-loader': 'quilt', forge: 'forge', neoforge: 'neoforge' };
+    const loaderKey = Object.keys(loaderKeys).find(key => dependencies[key]);
+    const packLoader = loaderKey ? loaderKeys[loaderKey] : 'vanilla';
+    if (dependencies.minecraft !== gameVersion || packLoader !== loader) throw new Error('This modpack requires a different Minecraft version or loader. Create a matching instance first.');
+    const contentPath = relative => {
+        const first = typeof relative === 'string' ? relative.replaceAll('\\', '/').split('/')[0].toLowerCase() : '';
+        if (['versions', 'libraries', 'natives', '.novex', 'instance.json', 'installation.json'].includes(first)) throw new Error('Modpack contains a protected launcher path.');
+        return safeTarget(instanceDirectory, relative);
+    };
+    for (const packFile of index.files || []) contentPath(packFile.path);
+    for (const entry of entries) {
+        const relative = entry.entryName.replace(/^(client-overrides|overrides)\//, '');
+        if (!entry.isDirectory && relative !== entry.entryName) contentPath(relative);
+    }
+    await installMinecraft({ version: gameVersion, loader, loaderVersion: loaderKey ? dependencies[loaderKey] : undefined, instanceDirectory });
 
     /*
      * Download files listed in
@@ -836,6 +851,8 @@ export async function installResourcePack({
 
     }
 
+
+    validateModrinthVersion(version, projectId, gameVersion);
 
     /*
      * Find the primary file.

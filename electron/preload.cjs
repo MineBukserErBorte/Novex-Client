@@ -1,14 +1,37 @@
-import {
-    contextBridge,
-    ipcRenderer
-} from "electron";
+const { contextBridge, ipcRenderer } = require("electron");
 
 
 contextBridge.exposeInMainWorld(
     "novex",
     {
 
-        version: "0.1.0",
+        openExternal: url => ipcRenderer.invoke('external:open', url),
+        updates: { check: () => ipcRenderer.invoke('updates:check'), open: () => ipcRenderer.invoke('updates:open') },
+        settings: {
+            get: () => ipcRenderer.invoke('settings:get'),
+            chooseJava: () => ipcRenderer.invoke('settings:java'),
+            resetJava: () => ipcRenderer.invoke('settings:java-reset'),
+            chooseStorage: () => ipcRenderer.invoke('settings:storage'),
+            setBackground: value => ipcRenderer.invoke('settings:background', value)
+        },
+        socialSession: {
+            read: () => ipcRenderer.invoke('social-session:read'),
+            write: value => ipcRenderer.invoke('social-session:write', value)
+        },
+        minecraftAccounts: {
+            list: () => ipcRenderer.invoke('minecraft-accounts:list'),
+            login: () => ipcRenderer.invoke('minecraft-accounts:login'),
+            cancel: () => ipcRenderer.invoke('minecraft-accounts:cancel'),
+            select: id => ipcRenderer.invoke('minecraft-accounts:select', id),
+            remove: id => ipcRenderer.invoke('minecraft-accounts:remove', id),
+            refresh: id => ipcRenderer.invoke('minecraft-accounts:refresh', id),
+            addLocal: name => ipcRenderer.invoke('minecraft-accounts:local', name),
+            onProgress: callback => {
+                const listener = (_event, message) => callback(message);
+                ipcRenderer.on('minecraft-accounts:progress', listener);
+                return () => ipcRenderer.removeListener('minecraft-accounts:progress', listener);
+            }
+        },
 
 
         /*
@@ -195,6 +218,7 @@ contextBridge.exposeInMainWorld(
          */
 
         minecraft: {
+            status: () => ipcRenderer.invoke("minecraft:status"),
 
             install: options =>
                 ipcRenderer.invoke(

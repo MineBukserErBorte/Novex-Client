@@ -1,0 +1,73 @@
+name: Build tagged release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            command: dist:win
+          - os: ubuntu-24.04
+            command: dist:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Use tag version for packaged artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NOVEX_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: npm version "${NOVEX_TAG#v}" --no-git-tag-version --allow-same-version
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcrypt1 rpm
+      - run: npm ci
+      - run: npm run check:electron
+      - run: npm test
+      - run: npm run ${{ matrix.command }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Novex-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.AppImage
+            release/*.rpm
+            release/*.deb
+          if-no-files-found: error
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Novex-*
+          path: artifacts
+          merge-multiple: true
+      - name: Generate installer checksums
+        working-directory: artifacts
+        run: sha256sum -- *.exe *.AppImage *.rpm *.deb > SHA256SUMS.txt
+      - name: Prepare reviewed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOVEX_TAG: ${{ github.ref_name }}
+        run: gh release create "$NOVEX_TAG" artifacts/* --verify-tag --draft --title "Novex Client $NOVEX_TAG" --generate-notes

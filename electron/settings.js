@@ -9,7 +9,7 @@ export async function getSettings() {
         try { settings = JSON.parse(await fs.readFile(file(), 'utf8')); }
         catch (error) { if (error.code !== 'ENOENT') throw new Error('Launcher settings are unreadable. Restore launcher-settings.json from backup.'); settings = {}; }
     }
-    return { javaPath: settings.javaPath || '', instancesDirectory: settings.instancesDirectory || path.join(app.getPath('userData'), 'instances'), dataDirectory: app.getPath('userData'), platform: process.platform };
+    return { backgroundMode: settings.backgroundMode === 'exit' ? 'exit' : 'background', backgroundNotification: settings.backgroundNotification !== false, javaPath: settings.javaPath || '', instancesDirectory: settings.instancesDirectory || path.join(app.getPath('userData'), 'instances'), dataDirectory: app.getPath('userData'), browserCacheDirectory: path.join(app.getPath('sessionData'), 'Cache'), platform: process.platform };
 }
 async function save(patch) {
     await getSettings();
@@ -34,4 +34,9 @@ export async function chooseInstanceStorage() {
     const directory = assertNoSymlinks(result.filePaths[0]);
     await fs.access(directory, fs.constants.W_OK);
     return save({ instancesDirectory: directory });
+}
+
+export async function setBackgroundSettings(input) {
+    if (!input || !['background', 'exit'].includes(input.backgroundMode) || typeof input.backgroundNotification !== 'boolean') throw new Error('Invalid background settings.');
+    return save({ backgroundMode: input.backgroundMode, backgroundNotification: input.backgroundNotification });
 }

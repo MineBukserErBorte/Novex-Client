@@ -7,6 +7,7 @@ export type NovexSelectOption = {
 };
 
 type Props = {
+    label?: string;
     value: string;
     onChange: (value: string) => void;
     options: NovexSelectOption[];
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export default function NovexSelect({
+    label,
     value,
     onChange,
     options,
@@ -27,6 +29,11 @@ export default function NovexSelect({
     const rootRef = useRef<HTMLDivElement>(null);
     const listId = useId();
 
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (disabled) setOpen(false);
+        if (open) rootRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]:not(:disabled), [role="option"]:not(:disabled)')?.focus();
+    }, [open, disabled]);
     const selected = options.find(
         option => option.value === value
     );
@@ -78,6 +85,17 @@ export default function NovexSelect({
     return (
         <div
             ref={rootRef}
+            onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
+            onKeyDown={event => {
+                if (event.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); }
+                if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || disabled) return;
+                event.preventDefault();
+                if (!open) { setOpen(true); return; }
+                const choices = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)') || []);
+                const index = choices.indexOf(document.activeElement as HTMLButtonElement);
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + choices.length) % choices.length;
+                choices[next]?.focus();
+            }}
             className={[
                 "novex-select",
                 open
@@ -92,6 +110,8 @@ export default function NovexSelect({
                 .join(" ")}
         >
             <button
+                ref={triggerRef}
+                aria-label={label}
                 type="button"
                 className="novex-select-trigger"
                 disabled={disabled}
@@ -128,6 +148,7 @@ export default function NovexSelect({
                     id={listId}
                     className="novex-select-menu"
                     role="listbox"
+                    aria-label={label}
                 >
                     {options.length === 0 ? (
                         <div className="novex-select-empty">
@@ -169,6 +190,7 @@ export default function NovexSelect({
                                     );
 
                                     setOpen(false);
+                                    triggerRef.current?.focus();
                                 }}
                             >
                                 <span>

@@ -1,3 +1,4 @@
+import MinecraftAccounts from "../components/MinecraftAccounts";
 import {
     useEffect,
     useState,
@@ -58,6 +59,15 @@ function Instances({
     onInstancesChanged,
     onEditInstance
 }: InstancesProps) {
+
+    useEffect(() => {
+        void window.novex.minecraft.status().then(status => {
+            if (status.instanceId && ['starting', 'running', 'stopping'].includes(status.state)) {
+                setRunningInstanceId(status.instanceId);
+                setInstanceStates(current => ({ ...current, [status.instanceId!]: status.state }));
+            }
+        }).catch(() => {});
+    }, []);
 
     const [runningInstanceId, setRunningInstanceId] =
         useState<string | null>(null);
@@ -803,14 +813,7 @@ function Instances({
                     loader:
                         instance.loader,
 
-                    username:
-                        "NovexPlayer",
-
-                    uuid:
-                        "00000000-0000-0000-0000-000000000000",
-
-                    accessToken:
-                        "0"
+                    instanceId: instance.id
 
                 });
 
@@ -966,6 +969,7 @@ function Instances({
     return (
 
         <div className="page">
+            <MinecraftAccounts compact />
 
             {/* HEADER */}
 

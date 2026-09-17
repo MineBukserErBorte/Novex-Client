@@ -36,3 +36,14 @@ userData/
 # Temporary files
 tmp/
 temp/
+# Private runtime data and generated notices
+*.encrypted
+*.encrypted.tmp
+msal-cache*
+minecraft-accounts.json
+launcher-settings.json
+instance-paths.json
+user-data/
+*.tmp
+public/third-party-notices.json
+supabase/.temp/

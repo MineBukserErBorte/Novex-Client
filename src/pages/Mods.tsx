@@ -1,3 +1,4 @@
+import ContentSource from "../components/ContentSource";
 import {
     useEffect,
     useRef,
@@ -20,7 +21,7 @@ type Props = {
     instances: MinecraftInstance[];
 };
 
-export default function Mods({
+function ModrinthMods({
     instances
 }: Props) {
 
@@ -1317,4 +1318,7 @@ function SearchIcon() {
 
         </svg>
     );
+}
+export default function Mods(props: Props) {
+    return <ContentSource kind="mod"><ModrinthMods {...props} /></ContentSource>;
 }

@@ -43,7 +43,7 @@ let currentRequiredJava = 8;
  * ============================================================
  */
 
-async function downloadJson(url) {
+async function downloadJson(url, expectedSha1) {
     const response = await fetch(url, { signal: currentInstallController?.signal });
 
     if (!response.ok) {
@@ -52,7 +52,9 @@ async function downloadJson(url) {
         );
     }
 
-    return await response.json();
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (expectedSha1 && crypto.createHash('sha1').update(buffer).digest('hex') !== expectedSha1) throw new Error('Minecraft metadata integrity verification failed.');
+    return JSON.parse(buffer.toString('utf8'));
 }
 
 
@@ -617,7 +619,7 @@ async function installVanilla({
 
     const versionData =
         await downloadJson(
-            versionInfo.url
+            versionInfo.url, versionInfo.sha1
         );
 
 
@@ -862,6 +864,7 @@ async function installVanilla({
 
 
     if (assetIndex) {
+        safeSegment(assetIndex.id, "asset index");
 
         const assetIndexPath =
             path.join(
@@ -949,6 +952,7 @@ async function installVanilla({
                 asset.hash;
 
 
+            if (hash && !/^[a-f0-9]{40}$/i.test(hash)) throw new Error("Invalid Minecraft asset hash.");
             if (!hash) {
                 continue;
             }

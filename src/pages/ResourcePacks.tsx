@@ -1,3 +1,4 @@
+import ContentSource from "../components/ContentSource";
 import { useEffect, useState } from "react";
 
 import {
@@ -18,7 +19,7 @@ type Props = {
 };
 
 
-export default function ResourcePacks({
+function ModrinthResourcePacks({
     instance
 }: Props) {
 
@@ -682,4 +683,6 @@ function PackageIcon() {
 
     );
 
+}export default function ResourcePacks(props: Props) {
+    return <ContentSource kind="resourcepack"><ModrinthResourcePacks {...props} /></ContentSource>;
 }

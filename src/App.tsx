@@ -1,3 +1,6 @@
+import AdminHome from "./pages/AdminHome";
+import { useHomeAdmin } from "./hooks/useHomeAdmin";
+import Settings from "./pages/Settings";
 import { useEffect, useState, type ReactNode } from "react";
 import "./index.css";
 
@@ -24,6 +27,7 @@ import {
 
 
 type Page =
+    | "admin"
     | "home"
     | "instances"
     | "mods"
@@ -37,6 +41,7 @@ type Page =
 
 
 function App() {
+    const admin = useHomeAdmin();
 
     const [page, setPage] =
         useState<Page>("home");
@@ -154,6 +159,7 @@ function App() {
         description: string;
     }> = {
 
+        admin: { title: "Admin", description: "Manage Home content" },
         home: {
             title: "Home",
             description: "Welcome back to Novex"
@@ -240,6 +246,7 @@ function App() {
 
 
                 <nav className="sidebar-navigation">
+                    {admin && <NavItem icon={<SettingsIcon />} label="Admin" active={page === "admin"} onClick={() => nav("admin")} />}
 
                     <div className="sidebar-section">
 
@@ -430,6 +437,7 @@ function App() {
                 {/* CONTENT */}
 
                 <main className="content">
+                    {page === "admin" && (admin ? <AdminHome /> : <p>Admin access is required.</p>)}
 
                     {page === "home" && (
 
@@ -546,7 +554,7 @@ function App() {
 
                     {page === "settings" && (
 
-                        <SettingsPlaceholder />
+                        <Settings />
 
                     )}
 
@@ -643,40 +651,6 @@ function EmptyInstance() {
 
 /* =========================================================
    SETTINGS
-   ========================================================= */
-
-function SettingsPlaceholder() {
-
-    return (
-
-        <div className="empty-page">
-
-            <div className="empty-page-icon">
-                <SettingsIcon />
-            </div>
-
-            <div className="eyebrow">
-                NOVEX CLIENT
-            </div>
-
-            <h1>
-                Settings
-            </h1>
-
-            <p>
-                Launcher and Novex account
-                settings will live here.
-            </p>
-
-        </div>
-
-    );
-
-}
-
-
-/* =========================================================
-   ICONS
    ========================================================= */
 
 function Icon({

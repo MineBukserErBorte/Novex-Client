@@ -1,3 +1,8 @@
+import NovexSelect from "../components/NovexSelect";
+import UpdateNotice from "../components/UpdateNotice";
+import MinecraftAccounts from "../components/MinecraftAccounts";
+import LauncherSettings from "../components/LauncherSettings";
+import Legal from "./Legal";
 import { useEffect, useState } from "react";
 
 export default function Settings() {
@@ -7,13 +12,6 @@ export default function Settings() {
             localStorage.getItem(
                 "novex-theme"
             ) || "dark"
-        );
-
-    const [closeToTray, setCloseToTray] =
-        useState(
-            localStorage.getItem(
-                "novex-close-to-tray"
-            ) === "true"
         );
 
     const [showConsole, setShowConsole] =
@@ -38,16 +36,6 @@ export default function Settings() {
         );
 
     }, [theme]);
-
-
-    useEffect(() => {
-
-        localStorage.setItem(
-            "novex-close-to-tray",
-            String(closeToTray)
-        );
-
-    }, [closeToTray]);
 
 
     useEffect(() => {
@@ -84,7 +72,6 @@ export default function Settings() {
         );
 
         setTheme("dark");
-        setCloseToTray(false);
         setShowConsole(true);
 
     }
@@ -109,6 +96,10 @@ export default function Settings() {
             </div>
 
 
+            <MinecraftAccounts />
+            <LauncherSettings /><UpdateNotice settings />
+            <Legal />
+
             <section className="card">
 
                 <h2>
@@ -120,34 +111,7 @@ export default function Settings() {
                 </p>
 
 
-                <label>
-
-                    Theme
-
-                    <select
-                        value={theme}
-                        onChange={e =>
-                            setTheme(
-                                e.target.value
-                            )
-                        }
-                    >
-
-                        <option value="dark">
-                            Dark
-                        </option>
-
-                        <option value="light">
-                            Light
-                        </option>
-
-                        <option value="system">
-                            System
-                        </option>
-
-                    </select>
-
-                </label>
+                <div className="settings-field"><span>Theme</span><NovexSelect label="Theme" value={theme} onChange={setTheme} options={[{value:'dark',label:'Dark'},{value:'light',label:'Light'},{value:'system',label:'System'}]} /></div>
 
             </section>
 
@@ -177,37 +141,6 @@ export default function Settings() {
                     />
 
                     Show Minecraft console
-
-                </label>
-
-            </section>
-
-
-            <section className="card">
-
-                <h2>
-                    Window
-                </h2>
-
-                <label
-                    style={{
-                        display: "flex",
-                        gap: 10,
-                        alignItems: "center"
-                    }}
-                >
-
-                    <input
-                        type="checkbox"
-                        checked={closeToTray}
-                        onChange={e =>
-                            setCloseToTray(
-                                e.target.checked
-                            )
-                        }
-                    />
-
-                    Minimize to tray when closing
 
                 </label>
 

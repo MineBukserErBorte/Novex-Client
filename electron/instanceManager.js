@@ -5,7 +5,15 @@ import { getSettings } from "./settings.js";
 import { safeSegment, assertNoSymlinks } from "./pathSafety.js";
 const issuedDirectories = new Set();
 let registry;
+let registryLoading;
+let registryWrites = Promise.resolve();
 async function loadRegistry() {
+    if (registry) return;
+    if (registryLoading) return registryLoading;
+    registryLoading = readRegistry();
+    try { await registryLoading; } finally { registryLoading = undefined; }
+}
+async function readRegistry() {
     if (!registry) {
         try { registry = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'instance-paths.json'), 'utf8')); }
         catch (error) { if (error.code !== 'ENOENT') throw new Error('Instance path registry is unreadable. Restore instance-paths.json.'); registry = {}; }
@@ -14,7 +22,12 @@ async function loadRegistry() {
 async function remember(id, directory) {
     registry[id] = directory;
     await fs.mkdir(app.getPath('userData'), { recursive: true });
-    await fs.writeFile(path.join(app.getPath('userData'), 'instance-paths.json'), JSON.stringify(registry, null, 2));
+    registryWrites = registryWrites.catch(() => {}).then(async () => {
+        const file = path.join(app.getPath('userData'), 'instance-paths.json');
+        await fs.writeFile(file + '.tmp', JSON.stringify(registry, null, 2));
+        await fs.rename(file + '.tmp', file);
+    });
+    await registryWrites;
     issuedDirectories.add(directory);
     return directory;
 }
@@ -38,7 +51,7 @@ function sanitizeName(name) {
 
 async function getInstancePath(instance) {
     if (!instance || typeof instance.name !== 'string' || instance.name.length > 160) throw new Error('Invalid instance.');
-    safeSegment(instance.id, 'instance ID');
+    if (typeof instance.id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(instance.id)) throw new Error('Invalid instance ID.');
     const safeName = sanitizeName(instance.name);
     safeSegment(safeName, 'instance name');
     await loadRegistry();
