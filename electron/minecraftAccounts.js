@@ -54,7 +54,8 @@ async function exclusive(work) {
         // MSAL errors can contain request metadata. Only expose curated error codes.
         if (error.errorCode) {
             void diagnostic({ stage: 'Microsoft', serviceCode: error.errorCode });
-            throw new Error(['interaction_required', 'invalid_grant', 'no_tokens_found'].includes(error.errorCode) ? 'Microsoft authentication expired. Sign in with Microsoft again.' : 'Microsoft authentication failed. Try again; organizational accounts may not support Xbox.');
+            if (error.errorCode === 'invalid_scope') throw new Error('Microsoft rejected Novex’s Xbox sign-in permissions (invalid_scope). Use the latest Novex build and sign in again with the personal Microsoft account that owns Minecraft.');
+            throw new Error(['interaction_required', 'invalid_grant', 'no_tokens_found'].includes(error.errorCode) ? 'Microsoft authentication expired. Sign in with Microsoft again.' : 'Microsoft authentication failed. Try again with your personal Microsoft account.');
         }
         throw error;
     } finally { operation = undefined; callback = undefined; }

@@ -96,3 +96,11 @@ npm run dist:linux
 ```
 
 Fedora build hosts need RPM build tools and `libxcrypt-compat` for electron-builder's packaging helper. Ordinary launcher use does not require root. AppImage needs working distro FUSE support in normal mode. See [Home/admin/release setup](HOME-ADMIN-AND-UPDATES.md) for deployment steps.
+
+## Microsoft invalid_scope follow-up
+
+The user's credential-free diagnostics showed successful callback delivery and authorization-code receipt, followed by `invalid_scope` during token exchange. This was a Microsoft OAuth rejection before Xbox/XSTS/Minecraft, not evidence of missing Minecraft ownership or allowlisting.
+
+Changed the MSAL authority from `common` to `consumers`, matching the personal-account endpoints in [Microsoft's Xbox authentication documentation](https://learn.microsoft.com/en-us/gaming/gdk/docs/services/fundamentals/s2s-auth-calls/service-authentication/live-website-authentication). Kept Novex's client ID, public-client PKCE flow, registered redirect and encrypted cache. The registration can still support both account types; Minecraft sign-in requests a personal Xbox-capable account. Scope rejection now has a specific message rather than suggesting the account is organizational.
+
+Added a regression through the actual MSAL library with a fake token response, verifying both endpoint URLs, S256, verifier, client ID, redirect, Xbox scope and absence of a client secret. A real sign-in must still be retried in the rebuilt application to confirm Microsoft accepts the request; this test does not establish live success.

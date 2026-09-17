@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 export const CLIENT_ID = '4df8fc45-5d5d-4d5d-ad5e-c98203479c15';
-export const AUTHORITY = 'https://login.microsoftonline.com/common';
+// Xbox identities are personal Microsoft accounts. The common tenant can accept
+// the browser step but reject Xbox scopes when redeeming the authorization code.
+export const AUTHORITY = 'https://login.microsoftonline.com/consumers';
 export const AUTH_SCHEME = `msal${CLIENT_ID}`;
 export const REDIRECT_URI = `${AUTH_SCHEME}://auth`;
 export const SCOPES = ['XboxLive.signin', 'offline_access'];

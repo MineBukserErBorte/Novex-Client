@@ -8,7 +8,7 @@ The original launcher, installer, Modrinth browser, file manager, console, frien
 
 ### Microsoft accounts
 
-`@azure/msal-node` PublicClientApplication uses Novex's public client ID `4df8fc45-5d5d-4d5d-ad5e-c98203479c15`, common authority, S256 PKCE and a random, single-use state. The system browser returns to `msal4df8fc45-5d5d-4d5d-ad5e-c98203479c15://auth`. The main process checks the URI and state and exchanges the code. MSAL manages access/refresh credentials through an encrypted cache plugin. No client secret or borrowed application registration exists.
+`@azure/msal-node` PublicClientApplication uses Novex's public client ID `4df8fc45-5d5d-4d5d-ad5e-c98203479c15`, personal-account (`consumers`) authority, S256 PKCE and a random, single-use state. The system browser returns to `msal4df8fc45-5d5d-4d5d-ad5e-c98203479c15://auth`. The main process checks the URI and state and exchanges the code. MSAL manages access/refresh credentials through an encrypted cache plugin. No client secret or borrowed application registration exists.
 
 The main process performs Xbox Live → XSTS (RETAIL/Minecraft relying party) → Minecraft Services → Java entitlement → profile validation. Every authenticated launch rechecks the account; failure never falls back to local mode. A Minecraft Services login HTTP 403 is reported as Novex application authorization rejection. This status is not proof of the exact server-side approval reason; the stage/status is logged for operator follow-up. Other failures remain separate.
 
@@ -39,7 +39,7 @@ The monitor depends on Electron's RUN_AS_NODE capability. Do not disable the Run
 
 ## Operator actions before distribution
 
-1. **Microsoft Entra:** retain public-client configuration, client ID and exact redirect. No secret is needed. Verify consent to XboxLive.signin/offline_access and test a personal Microsoft account that owns Java. Organization accounts may fail Xbox eligibility even though the Entra app supports them.
+1. **Microsoft Entra:** retain public-client configuration, client ID and exact redirect. No secret is needed. Verify consent to XboxLive.signin/offline_access and test a personal Microsoft account that owns Java. Minecraft sign-in targets personal Microsoft accounts for Xbox; the Entra registration can continue supporting both account types.
 2. **Minecraft Services:** approval/allowlisting of this application's ID has not been verified. If the service rejects it, contact Minecraft's application approval/support process. Do not replace the client ID with another launcher's ID.
 3. **Linux browser callback:** DEB/RPM install desktop protocol metadata. Before interactive sign-in, Novex writes a per-user novex-auth.desktop entry and verifies the xdg-mime association. AppImage uses the persistent APPIMAGE executable path, never its temporary mount. Development uses the Electron executable plus project path. No alternate redirect or manual token entry is added. Use a desktop with Secret Service or KWallet unlocked for persistent authentication.
 4. **Supabase:** configure the public build-time URL/key. Inspect the deployed RLS, function grants, schema and retention rules. The Home/admin migration is provided and tested locally, but was not applied to the live project. No live backend policy changes were made. Define account-deletion/support procedures; there is no self-service server-account deletion in this source.
