@@ -1,3 +1,4 @@
+import { useDialogs } from "../components/Dialogs";
 import NovexSelect from "../components/NovexSelect";
 import UpdateNotice from "../components/UpdateNotice";
 import MinecraftAccounts from "../components/MinecraftAccounts";
@@ -7,6 +8,7 @@ import { useEffect, useState } from "react";
 
 export default function Settings() {
 
+    const { confirm } = useDialogs();
     const [theme, setTheme] =
         useState(
             localStorage.getItem(
@@ -48,11 +50,11 @@ export default function Settings() {
     }, [showConsole]);
 
 
-    function resetSettings() {
+    async function resetSettings() {
 
         const confirmed =
-            window.confirm(
-                "Reset all Novex settings?"
+            await confirm(
+                "Reset appearance and console preferences? Instances, accounts and storage will be kept."
             );
 
         if (!confirmed) {
@@ -98,7 +100,7 @@ export default function Settings() {
 
             <MinecraftAccounts />
             <LauncherSettings /><UpdateNotice settings />
-            <Legal />
+
 
             <section className="card">
 
@@ -150,17 +152,18 @@ export default function Settings() {
             <section className="card">
 
                 <h2>
-                    Danger Zone
+                    Reset preferences
                 </h2>
 
                 <button
-                    onClick={resetSettings}
+                    className="danger-button" onClick={() => void resetSettings()}
                 >
                     Reset Settings
                 </button>
 
             </section>
 
+            <Legal />
         </div>
 
     );

@@ -46,6 +46,8 @@ function App() {
     const [page, setPage] =
         useState<Page>("home");
 
+    useEffect(() => { document.querySelector(".content")?.scrollTo({ top: 0 }); }, [page]);
+
     const [instances, setInstances] =
         useState<MinecraftInstance[]>(
             getInstances()
@@ -598,6 +600,9 @@ function NavItem({
                 }`
             }
             onClick={onClick}
+            aria-label={label}
+            title={label}
+            aria-current={active ? "page" : undefined}
         >
 
             <span className="sidebar-nav-icon">

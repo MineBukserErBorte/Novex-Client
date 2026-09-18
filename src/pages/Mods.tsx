@@ -1,3 +1,4 @@
+import { uiError } from "../services/uiError";
 import ContentSource from "../components/ContentSource";
 import {
     useEffect,
@@ -159,9 +160,7 @@ function ModrinthMods({
             );
 
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to load mods."
+                uiError(err, "Failed to load mods.")
             );
 
         } finally {
@@ -243,9 +242,7 @@ function ModrinthMods({
             );
 
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to install mod."
+                uiError(err, "Failed to install mod.")
             );
 
         } finally {
@@ -1080,7 +1077,7 @@ function ModrinthMods({
                                                 {
                                                     mod.title
                                                 }
-                                            </h3>
+                                            </h3><span className="provider-badge">Modrinth</span>
 
 
                                             <div
@@ -1141,9 +1138,7 @@ function ModrinthMods({
                                                 mod
                                             )
                                         }
-                                        disabled={
-                                            isInstalling
-                                        }
+                                        disabled={Boolean(installing)}
                                         style={{
                                             width: "100%",
                                             height: 38,

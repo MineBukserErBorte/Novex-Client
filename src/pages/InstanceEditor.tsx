@@ -22,11 +22,12 @@ export default function InstanceEditor({
     instance,
     onBack
 }: Props) {
+    const [fileDirectory, setFileDirectory] = useState<"" | "shaderpacks" | "config">("");
     const [tab, setTab] = useState<Tab>("mods");
 
     if (!instance) {
         return (
-            <div className="page">
+            <div className="page instance-editor">
                 <div
                     style={{
                         maxWidth: 1100,
@@ -75,7 +76,7 @@ export default function InstanceEditor({
     ];
 
     return (
-        <div className="page">
+        <div className="page instance-editor">
 
             {/* =================================================
                 INSTANCE HEADER
@@ -344,6 +345,7 @@ export default function InstanceEditor({
 
                             <button
                                 type="button"
+                                onClick={() => { setFileDirectory("shaderpacks"); setTab("files"); }}
                                 style={{
                                     height: 38,
                                     padding: "0 15px",
@@ -358,7 +360,7 @@ export default function InstanceEditor({
                                     cursor: "pointer"
                                 }}
                             >
-                                Add Shader Pack
+                                Browse Shader Files
                             </button>
 
                         </div>
@@ -370,7 +372,8 @@ export default function InstanceEditor({
                 {/* FILES */}
 
                 {tab === "files" && (
-                    <Files
+                    <Files key={fileDirectory}
+                        initialDirectory={fileDirectory}
                         instances={[instance]}
                     />
                 )}
@@ -416,6 +419,7 @@ export default function InstanceEditor({
 
                             <button
                                 type="button"
+                                onClick={() => { setFileDirectory("config"); setTab("files"); }}
                                 style={{
                                     height: 38,
                                     padding: "0 15px",

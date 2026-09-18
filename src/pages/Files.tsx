@@ -1,3 +1,4 @@
+import { useDialogs } from "../components/Dialogs";
 import {
     useEffect,
     useState
@@ -11,6 +12,7 @@ import type {
 
 
 type Props = {
+    initialDirectory?: "" | "shaderpacks" | "config";
     instances: MinecraftInstance[];
 };
 
@@ -27,9 +29,10 @@ type FileItem = {
 
 
 export default function Files({
-    instances
+    instances, initialDirectory = ""
 }: Props) {
 
+    const { confirm } = useDialogs();
     const [
         selectedInstanceId,
         setSelectedInstanceId
@@ -41,7 +44,7 @@ export default function Files({
         useState<FileItem[]>([]);
 
     const [currentPath, setCurrentPath] =
-        useState("");
+        useState<string>(initialDirectory);
 
     const [loading, setLoading] =
         useState(false);
@@ -221,7 +224,7 @@ export default function Files({
         }
 
         const confirmed =
-            window.confirm(
+            await confirm(
                 `Are you sure you want to delete "${file.name}"?`
             );
 

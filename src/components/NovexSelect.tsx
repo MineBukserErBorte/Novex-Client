@@ -7,6 +7,7 @@ export type NovexSelectOption = {
 };
 
 type Props = {
+    searchable?: boolean;
     label?: string;
     value: string;
     onChange: (value: string) => void;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export default function NovexSelect({
+    searchable = false,
     label,
     value,
     onChange,
@@ -26,13 +28,19 @@ export default function NovexSelect({
     className = ""
 }: Props) {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const filtered = options.filter(option => option.label.toLowerCase().includes(query.toLowerCase()));
     const rootRef = useRef<HTMLDivElement>(null);
     const listId = useId();
 
     const triggerRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (disabled) setOpen(false);
-        if (open) rootRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]:not(:disabled), [role="option"]:not(:disabled)')?.focus();
+        if (!open) setQuery('');
+        if (open) {
+            const root = rootRef.current;
+            (root?.querySelector<HTMLElement>('input') || root?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]:not(:disabled)') || root?.querySelector<HTMLElement>('[role="option"]:not(:disabled)'))?.focus();
+        }
     }, [open, disabled]);
     const selected = options.find(
         option => option.value === value
@@ -150,12 +158,13 @@ export default function NovexSelect({
                     role="listbox"
                     aria-label={label}
                 >
-                    {options.length === 0 ? (
+                    {(searchable || options.length > 10) && <input className="select-search" aria-label={`Search ${label || 'options'}`} placeholder="Search…" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Home' || event.key === 'End') event.stopPropagation(); }} />}
+                    {filtered.length === 0 ? (
                         <div className="novex-select-empty">
                             No options available
                         </div>
                     ) : (
-                        options.map(option => (
+                        filtered.map(option => (
                             <button
                                 type="button"
                                 role="option"

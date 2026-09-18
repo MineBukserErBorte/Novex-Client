@@ -28,7 +28,7 @@ export default function Home({
 
         <div className="home">
 
-            <UpdateNotice /><HomeCarousel><section className="home-hero">
+            <HomeCarousel><section className="home-hero">
 
                 <div className="home-hero-copy">
 
@@ -97,7 +97,7 @@ export default function Home({
 
                 </div>
 
-            </section></HomeCarousel>
+            </section></HomeCarousel><UpdateNotice />
 
 
             <section className="section">

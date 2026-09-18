@@ -1,3 +1,4 @@
+import { uiError } from "../services/uiError";
 import ContentSource from "../components/ContentSource";
 import { useEffect, useState } from "react";
 
@@ -91,9 +92,7 @@ function ModrinthResourcePacks({
             );
 
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to load resource packs."
+                uiError(err, "Failed to load resource packs.")
             );
 
         } finally {
@@ -184,9 +183,7 @@ function ModrinthResourcePacks({
             );
 
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to install resource pack."
+                uiError(err, "Failed to install resource pack.")
             );
 
         } finally {
@@ -549,7 +546,7 @@ function ModrinthResourcePacks({
 
                                             {pack.title}
 
-                                        </h3>
+                                        </h3><span className="provider-badge">Modrinth</span>
 
 
                                         <div
@@ -604,7 +601,7 @@ function ModrinthResourcePacks({
                                         )
                                     }
                                     disabled={
-                                        isInstalling
+                                        Boolean(installing)
                                     }
                                     style={{
                                         width: "100%",

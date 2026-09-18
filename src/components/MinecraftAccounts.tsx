@@ -1,7 +1,9 @@
+import { useDialogs } from "./Dialogs";
 import NovexSelect from "./NovexSelect";
 import { useEffect, useState } from 'react';
 import type { MinecraftAccountsState } from '../services/minecraftAccounts';
 export default function MinecraftAccounts({ compact = false }: { compact?: boolean }) {
+    const { confirm } = useDialogs();
     const [state, setState] = useState<MinecraftAccountsState | null>(null);
     const [busy, setBusy] = useState(false);
     const [progress, setProgress] = useState('');
@@ -26,14 +28,14 @@ export default function MinecraftAccounts({ compact = false }: { compact?: boole
         <div className="settings-field"><span>Selected account</span><NovexSelect label="Selected Minecraft account" value={state?.selectedId || ''} disabled={busy} placeholder="Select a Minecraft account" options={(state?.accounts || []).map(account => ({ value: account.id, label: `${account.username} — ${account.type === 'local' ? 'Offline / Local Account' : 'Microsoft'}` }))} onChange={value => void perform(() => window.novex.minecraftAccounts.select(value))} /></div>
         {!compact && <>
             {state?.secureStorage === false && <p role="status">Secure desktop storage is unavailable. Authentication stays in memory for this session. Unlock or enable your desktop keyring to remember sign-in securely.</p>}
-            <div className="account-actions"><button disabled={busy} onClick={() => void perform(() => window.novex.minecraftAccounts.login())}>Sign in with Microsoft</button>
+            <div className="account-actions"><button className="primary-button" disabled={busy} onClick={() => void perform(() => window.novex.minecraftAccounts.login())}>{busy ? 'Working…' : 'Sign in with Microsoft'}</button>
                 {busy && <button onClick={() => void window.novex.minecraftAccounts.cancel().catch(err => setError(err.message))}>Cancel sign-in</button>}</div>
             <div aria-live="polite">{busy ? progress : ''}</div>
             {state?.accounts.map(account => <article className="minecraft-account-row" key={account.id}>
                 {account.skinUrl && <div aria-label={`${account.username} Minecraft head`} role="img" className="minecraft-head" style={{ backgroundImage: `url("${account.skinUrl}")` }} />}
-                <div><strong>{account.username}{state.selectedId === account.id ? ' · Selected' : ''}</strong><p>{account.type === 'local' ? 'Offline / Local Account' : 'Microsoft Minecraft account'}</p><code>{account.uuid}</code><p>{account.authenticationStatus}</p></div>
+                <div className="minecraft-account-details"><strong>{account.username}{state.selectedId === account.id && <span className="provider-badge">Selected</span>}</strong><p>{account.type === 'local' ? 'Offline / Local Account' : 'Microsoft Minecraft account'}</p><code>{account.uuid}</code><p>{account.authenticationStatus}</p></div>
                 <div className="account-actions">{account.type === 'microsoft' && <button disabled={busy} onClick={() => void perform(() => window.novex.minecraftAccounts.refresh(account.id))}>Refresh</button>}
-                    <button disabled={busy} onClick={() => void perform(() => window.novex.minecraftAccounts.remove(account.id))}>Remove</button></div>
+                    <button className="danger-button" disabled={busy} onClick={async () => { if (await confirm(`Remove ${account.username} from Novex? This does not delete the Microsoft account or any worlds.`, 'Remove Minecraft account')) void perform(() => window.novex.minecraftAccounts.remove(account.id)); }}>Remove</button></div>
             </article>)}
             <details><summary>Offline / Local Account</summary><p>Local play only. This does not verify ownership or authenticate to online-mode servers.</p><label>Local username <input maxLength={16} value={localName} onChange={event => setLocalName(event.target.value)} /></label><button disabled={busy} onClick={() => void perform(() => window.novex.minecraftAccounts.addLocal(localName))}>Add local account</button></details>
         </>}

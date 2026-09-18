@@ -1,3 +1,4 @@
+import { uiError } from "../services/uiError";
 import ContentSource from "../components/ContentSource";
 import { useEffect, useState } from "react";
 
@@ -96,9 +97,7 @@ function ModrinthModpacks({
             setPacks(result);
         } catch (err) {
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to load modpacks."
+                uiError(err, "Failed to load modpacks.")
             );
         } finally {
             setLoading(false);
@@ -150,9 +149,7 @@ function ModrinthModpacks({
             );
         } catch (err) {
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to install modpack."
+                uiError(err, "Failed to install modpack.")
             );
         } finally {
             setInstalling(null);
@@ -186,7 +183,7 @@ function ModrinthModpacks({
 
                     <h3>
                         Create an instance first
-                    </h3>
+                    </h3><span className="provider-badge">Modrinth</span>
 
                     <p>
                         You need an instance before
@@ -307,7 +304,7 @@ function ModrinthModpacks({
 
                     <h3>
                         Loading modpacks
-                    </h3>
+                    </h3><span className="provider-badge">Modrinth</span>
 
                     <p>
                         Finding compatible projects
@@ -318,7 +315,7 @@ function ModrinthModpacks({
                 <div className="empty-card compact-empty">
                     <h3>
                         No modpacks found
-                    </h3>
+                    </h3><span className="provider-badge">Modrinth</span>
 
                     <p>
                         Try another search or change
@@ -352,7 +349,7 @@ function ModrinthModpacks({
 
                                     <h3 title={pack.title}>
                                         {pack.title}
-                                    </h3>
+                                    </h3><span className="provider-badge">Modrinth</span>
 
                                     <span>
                                         {
@@ -386,10 +383,7 @@ function ModrinthModpacks({
 
                                 <button
                                     className="primary-button"
-                                    disabled={
-                                        installing ===
-                                        pack.project_id
-                                    }
+                                    disabled={Boolean(installing)}
                                     onClick={() =>
                                         void install(pack)
                                     }

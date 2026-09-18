@@ -21,8 +21,16 @@ export function SlideContent({ slide, preview = false }: { slide: HomeSlide; pre
         {slide.image_url && !failedImage ? <img className="slide-image" src={slide.image_url} alt="" referrerPolicy="no-referrer" onError={() => setFailedImage(true)} /> : <div className="slide-art" aria-hidden="true">N</div>}
     </section>;
 }
+// Local announcements keep Home useful before remote content is configured.
+// Never invent advertisers or partner servers when the backend is empty/offline.
+const localSlides: HomeSlide[] = [
+    { id:'local-library', type:'announcement', title:'A home for every Minecraft setup.', subtitle:'Keep your worlds organized', description:'Separate your mods, saves and settings with instances. Your library stays on this computer.', image_url:'',button_text:'',button_url:'',server_address:'',enabled:true,sort_order:0,starts_at:null,ends_at:null },
+    { id:'local-community', type:'news', title:'Make Novex your own.', subtitle:'Play, customize, connect', description:'Explore compatible content from Modrinth and connect with friends through your separate Novex account.', image_url:'',button_text:'',button_url:'',server_address:'',enabled:true,sort_order:1,starts_at:null,ends_at:null }
+];
 export default function HomeCarousel({ children }: { children: ReactNode }) {
-    const { slides, loading, offline } = useHomeSlides();
+    const { slides: remoteSlides, loading, offline } = useHomeSlides();
+    const slides = remoteSlides.length ? remoteSlides : localSlides;
+    const [interaction, setInteraction] = useState(0);
     const [selected, setSelected] = useState('welcome-local');
     const [hovered, setHovered] = useState(false);
     const [focused, setFocused] = useState(false);
@@ -36,16 +44,17 @@ export default function HomeCarousel({ children }: { children: ReactNode }) {
         if (hovered || focused || paused || hidden || keys.length < 2) return;
         const timer = setTimeout(() => setSelected(keys[(index + 1) % keys.length]), 7000);
         return () => clearTimeout(timer);
-    }, [keySignature, index, hovered, focused, paused, hidden]);
-    const move = (step: number) => setSelected(keys[(index + step + keys.length) % keys.length]);
+    }, [keySignature, index, hovered, focused, paused, hidden, interaction]);
+    const select = (key: string) => { setSelected(key); setInteraction(value => value + 1); };
+    const move = (step: number) => select(keys[(index + step + keys.length) % keys.length]);
     return <div className="home-carousel" role="region" aria-label="Novex news and announcements" aria-roledescription="carousel" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
         <div className="carousel-viewport"><div className="carousel-track" style={{ transform: `translateX(-${index * 100}%)` }}>
             <div className="carousel-panel" inert={index !== 0} aria-hidden={index !== 0}>{children}</div>
             {slides.map((slide, i) => <div className="carousel-panel" key={slide.id} inert={index !== i + 1} aria-hidden={index !== i + 1}><SlideContent slide={slide} /></div>)}
         </div></div>
         <div className="carousel-controls">
-            <span className="carousel-status">{loading ? 'Loading announcements…' : offline ? 'Welcome · announcements unavailable' : `${index + 1} / ${keys.length}`}</span>
-            {keys.length > 1 && <><button aria-label="Previous slide" onClick={() => move(-1)}>←</button><div className="carousel-dots">{keys.map((key, i) => <button key={key} aria-label={`Show slide ${i + 1}`} aria-current={index === i ? 'true' : undefined} onClick={() => setSelected(key)} />)}</div><button aria-label="Next slide" onClick={() => move(1)}>→</button><button onClick={() => setPaused(!paused)} aria-label={paused ? 'Resume slideshow' : 'Pause slideshow'}>{paused ? 'Play' : 'Pause'}</button></>}
+            <span className="carousel-status">{loading ? 'Loading announcements…' : offline ? `Local highlights · ${index + 1} / ${keys.length}` : `${index + 1} / ${keys.length}${remoteSlides.length ? '' : ' · Novex highlights'}`}</span>
+            {keys.length > 1 && <><button aria-label="Previous slide" onClick={() => move(-1)}>←</button><div className="carousel-dots">{keys.map((key, i) => <button key={key} aria-label={`Show slide ${i + 1}`} aria-current={index === i ? 'true' : undefined} onClick={() => select(key)} />)}</div><button aria-label="Next slide" onClick={() => move(1)}>→</button><button onClick={() => setPaused(!paused)} aria-label={paused ? 'Resume slideshow' : 'Pause slideshow'}>{paused ? 'Play' : 'Pause'}</button></>}
         </div>
     </div>;
 }

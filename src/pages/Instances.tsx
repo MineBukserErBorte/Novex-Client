@@ -1,3 +1,5 @@
+import NovexSelect from "../components/NovexSelect";
+import { useDialogs } from "../components/Dialogs";
 import MinecraftAccounts from "../components/MinecraftAccounts";
 import {
     useEffect,
@@ -69,6 +71,7 @@ function Instances({
         }).catch(() => {});
     }, []);
 
+    const { notice } = useDialogs();
     const [runningInstanceId, setRunningInstanceId] =
         useState<string | null>(null);
 
@@ -362,7 +365,7 @@ function Instances({
             !file.type.startsWith("image/")
         ) {
 
-            alert(
+            void notice(
                 "Please select an image file."
             );
 
@@ -398,7 +401,7 @@ function Instances({
             !name.trim()
         ) {
 
-            alert(
+            void notice(
                 "Please enter an instance name."
             );
 
@@ -410,7 +413,7 @@ function Instances({
             !minecraftVersion
         ) {
 
-            alert(
+            void notice(
                 "Please select a Minecraft version."
             );
 
@@ -428,7 +431,7 @@ function Instances({
             loader === "neoforge"
         ) {
 
-            alert(
+            void notice(
                 `${formatLoader(loader)} installation is not available yet.`
             );
 
@@ -476,7 +479,7 @@ function Instances({
                 !updated
             ) {
 
-                alert(
+                void notice(
                     "Could not update the instance."
                 );
 
@@ -559,7 +562,7 @@ function Instances({
                 instance.id
             );
 
-            alert(
+            void notice(
                 "Novex could not create the instance folder."
             );
 
@@ -594,7 +597,7 @@ function Instances({
             runningInstanceId
         ) {
 
-            alert(
+            void notice(
                 "Stop Minecraft before installing or changing an instance."
             );
 
@@ -914,7 +917,7 @@ function Instances({
             deleting.id
         ) {
 
-            alert(
+            void notice(
                 "Stop Minecraft before deleting this instance."
             );
 
@@ -938,7 +941,7 @@ function Instances({
                 error
             );
 
-            alert(
+            void notice(
                 "Novex could not delete the instance folder."
             );
 
@@ -969,7 +972,6 @@ function Instances({
     return (
 
         <div className="page">
-            <MinecraftAccounts compact />
 
             {/* HEADER */}
 
@@ -1005,6 +1007,8 @@ function Instances({
 
             </div>
 
+
+            <MinecraftAccounts compact />
 
             {/* VERSION ERROR */}
 
@@ -1160,6 +1164,7 @@ function Instances({
                                     {/* ACTIONS */}
 
                                     <div className="instance-actions">
+                                        <button className="secondary-button instance-folder" onClick={() => void window.novex.instances.openFolder(instance).catch(() => { void notice("Unable to open the instance folder. Check that it still exists."); })}>Open Folder</button>
 
                                         {isRunning ? (
 
@@ -1315,40 +1320,7 @@ function Instances({
                                 Minecraft Version
                             </label>
 
-                            <select
-                                value={
-                                    minecraftVersion
-                                }
-                                disabled={
-                                    loadingVersions
-                                }
-                                onChange={event =>
-                                    setMinecraftVersion(
-                                        event.target.value
-                                    )
-                                }
-                            >
-
-                                {versions.map(
-                                    version => (
-
-                                        <option
-                                            key={
-                                                version.id
-                                            }
-                                            value={
-                                                version.id
-                                            }
-                                        >
-                                            {
-                                                version.id
-                                            }
-                                        </option>
-
-                                    )
-                                )}
-
-                            </select>
+                            <NovexSelect label="Minecraft version" searchable value={minecraftVersion} disabled={loadingVersions} onChange={setMinecraftVersion} options={versions.map(version => ({ value: version.id, label: version.id }))} />
 
                         </div>
 
@@ -1359,44 +1331,7 @@ function Instances({
                                 Mod Loader
                             </label>
 
-                            <select
-                                value={
-                                    loader
-                                }
-                                onChange={event =>
-                                    setLoader(
-                                        event.target.value as ModLoader
-                                    )
-                                }
-                            >
-
-                                <option value="vanilla">
-                                    Vanilla
-                                </option>
-
-                                <option value="fabric">
-                                    Fabric
-                                </option>
-
-                                <option value="quilt">
-                                    Quilt
-                                </option>
-
-                                <option
-                                    value="forge"
-                                    disabled
-                                >
-                                    Forge (Coming Soon)
-                                </option>
-
-                                <option
-                                    value="neoforge"
-                                    disabled
-                                >
-                                    NeoForge (Coming Soon)
-                                </option>
-
-                            </select>
+                            <NovexSelect label="Mod loader" value={loader} onChange={value => setLoader(value as ModLoader)} options={[{value:"vanilla",label:"Vanilla"},{value:"fabric",label:"Fabric"},{value:"quilt",label:"Quilt"},{value:"forge",label:"Forge (Coming Soon)",disabled:true},{value:"neoforge",label:"NeoForge (Coming Soon)",disabled:true}]} />
 
                         </div>
 
