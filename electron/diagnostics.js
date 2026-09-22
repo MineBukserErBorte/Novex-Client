@@ -12,3 +12,17 @@ export async function diagnostic({ stage = 'application', status = 0, serviceCod
         await fs.appendFile(file, JSON.stringify(record) + '\n', { mode: 0o600 });
     } catch { /* A logging failure must not expose credentials or break shutdown. */ }
 }
+
+
+// Only launcher's already-redacted output is passed here. Use the existing log.
+let gameWrites = Promise.resolve();
+export function minecraftDiagnostic(text) {
+    gameWrites = gameWrites.then(async () => {
+        const dir = path.join(app.getPath('userData'), 'logs');
+        await fs.mkdir(dir, {recursive:true});
+        const file = path.join(dir, 'novex.log');
+        if((await fs.stat(file).catch(()=>({size:0}))).size > 1024*1024) await fs.rename(file,file+'.previous').catch(()=>{});
+        await fs.appendFile(file, JSON.stringify({at:new Date().toISOString(),stage:'minecraft',message:String(text)})+'\n', {mode:0o600});
+    }).catch(()=>{});
+    return gameWrites;
+}

@@ -13,6 +13,10 @@ export interface MinecraftInstance {
     loaderVersion?: string;
     icon?: string;
     createdAt: number;
+    favorite?: boolean;
+    notes?: string;
+    group?: string;
+    lastPlayedAt?: number;
 }
 
 const STORAGE_KEY = "novex_instances";

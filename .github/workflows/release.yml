@@ -70,4 +70,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           NOVEX_TAG: ${{ github.ref_name }}
-        run: gh release create "$NOVEX_TAG" artifacts/* --verify-tag --draft --title "Novex Client $NOVEX_TAG" --generate-notes
+        run: |
+          if gh release view "$NOVEX_TAG" >/dev/null 2>&1; then
+            echo "Release already exists; fresh CI packages remain available as workflow artifacts."
+          else
+            gh release create "$NOVEX_TAG" artifacts/* --verify-tag --draft --title "Novex Client $NOVEX_TAG" --generate-notes
+          fi

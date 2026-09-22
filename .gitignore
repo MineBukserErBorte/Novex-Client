@@ -47,3 +47,39 @@ user-data/
 *.tmp
 public/third-party-notices.json
 supabase/.temp/
+
+# Local caches and build tooling
+.cache/
+.vite/
+.npm/
+coverage/
+*.tsbuildinfo
+*.swp
+*.swo
+*~
+*.save
+Desktop.ini
+
+# Signing credentials (never ship private signing material)
+*.p12
+*.pfx
+*.key
+*.pem
+*.keystore
+*.jks
+
+# Local game/account data
+.minecraft/
+instances/
+world-backups/
+backups/
+auth.json
+accounts.json
+personal-servers.json
+supabase-session*
+
+# Accidental local command-output files
+/udo dnf install nodejs npm
+/Novex-client@*
+/npm
+/npx

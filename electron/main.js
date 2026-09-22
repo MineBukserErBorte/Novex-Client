@@ -1,8 +1,12 @@
+import { identifyInstalledMods } from './modIdentity.js';
+import launchDiagnostics from './launchDiagnostics.cjs';
+import { listInstalledMods, setModEnabled } from './fileManager.js';
+import { runUtility, utilitiesBusy } from './utilities.js';
 import { checkUpdates, openUpdate } from './updates.js';
 import { pathToFileURL } from 'node:url';
 import { getSettings, chooseJava, resetJava, chooseInstanceStorage, setBackgroundSettings } from './settings.js';
 import { safeSegment } from './pathSafety.js';
-import { diagnostic } from './diagnostics.js';
+import { diagnostic, minecraftDiagnostic } from './diagnostics.js';
 import { readSecure, writeSecure } from './secureStore.js';
 import { AUTH_SCHEME } from './authProtocol.js';
 import { loginMicrosoft, cancelMicrosoftLogin, handleMicrosoftCallback, getMinecraftAccounts, selectMinecraftAccount, removeMinecraftAccount, refreshMinecraftAccount, addLocalAccount, getLaunchIdentity } from './minecraftAccounts.js';
@@ -68,12 +72,20 @@ let consoleWindow = null;
 let mainWindow = null;
 let activeLaunch = null;
 let launchPending = false;
+let recentGameLog = '';
+let lastLaunchMessage = '';
 const trustedContents = new WeakSet();
 const originalHandle = ipcMain.handle.bind(ipcMain);
+let activeMutations = 0;
+let togglingMod = false;
 function handle(channel, listener) {
     originalHandle(channel, async (event, ...args) => {
         const expected = app.isPackaged ? pathToFileURL(path.join(__dirname, '../dist/index.html')).href : 'http://localhost:5173/';
         if (!trustedContents.has(event.sender) || event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Untrusted IPC sender.');
+        const mutation = /^(instances:(create|delete)|minecraft:(launch|install)|fabric:|mods:(install|setEnabled)|modpacks:install|resourcepacks:install|settings:(java|storage)|files:(delete|write|rename|create))/.test(channel);
+        if (mutation && togglingMod) throw new Error('Wait for the mod toggle to finish.');
+        if (mutation && utilitiesBusy()) throw new Error('Wait for the current instance utility operation to finish.');
+        if(mutation) activeMutations++;
         try {
             if (args.some(arg => typeof arg === 'string' && arg.length > 2 * 1024 * 1024)) throw new Error('Input is too large.');
             return await listener(event, ...args);
@@ -81,14 +93,15 @@ function handle(channel, listener) {
             void diagnostic({ stage: channel, serviceCode: error.code || 'operation_failed' });
             const friendly = error.code === 'EACCES' || error.code === 'EPERM' ? 'Permission denied. Choose a writable location and check file permissions.' : error.name === 'AbortError' ? 'Operation cancelled.' : error.message === 'fetch failed' ? 'Network unavailable. Check your connection and try again.' : String(error.message || 'Operation failed.').split('\n')[0].slice(0, 400);
             throw new Error(friendly);
-        }
+        } finally { if(mutation) activeMutations--; }
     });
 }
 function broadcast(channel, data) {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
 }
-function gameLog(message) { broadcast('minecraft:log', message); sendConsoleLog(message); }
+function gameLog(message) { recentGameLog = (recentGameLog + String(message) + '\n').slice(-256 * 1024); lastLaunchMessage = String(message).slice(-1000); void minecraftDiagnostic(message); broadcast('minecraft:log', message); sendConsoleLog(message); }
 function gameState(state) {
+    if(state === 'starting') { recentGameLog = ''; lastLaunchMessage = ''; }
     broadcast('minecraft:state', state);
     if (['stopped', 'crashed'].includes(state)) activeLaunch = null;
     updateLifecycle();
@@ -101,6 +114,18 @@ function launchOptions(options) {
     return { instanceDirectory: validateInstanceDirectory(options.instanceDirectory), version: options.version, loader: options.loader, loaderVersion: options.loaderVersion };
 }
 
+handle('mods:installedProjects', async (_event, instance) => [...new Set((await identifyInstalledMods(await getInstanceDirectory(instance))).map(entry=>entry.version.project_id))]);
+handle('mods:list', async (_event, instance) => listInstalledMods(await getInstanceDirectory(instance)));
+handle('mods:setEnabled', async (_event, instance, name, enabled) => {
+    if(launchPending || isMinecraftRunning() || activeMutations > 1) throw new Error('Stop Minecraft and wait for installations before changing mods.');
+    togglingMod = true;
+    try { return await setModEnabled(await getInstanceDirectory(instance), name, enabled); }
+    finally { togglingMod = false; }
+});
+handle('utilities:run', (_event, action, instance, input) => {
+    if(activeMutations) throw new Error('Wait for the current installation or file operation to finish.');
+    return runUtility(action, instance, input, { progress: message => broadcast('utilities:progress', message), running: () => launchPending || isMinecraftRunning() });
+});
 handle('external:open', (_event, value) => {
     if (typeof value !== 'string' || value.length > 2048 || /[\u0000-\u0020\u007f]/.test(value)) throw new Error('Invalid link.');
     const url = new URL(value);
@@ -121,7 +146,7 @@ for (const [channel, action] of [['select', selectMinecraftAccount], ['remove', 
     handle('minecraft-accounts:' + channel, (_event, id) => { if (typeof id !== 'string' || !/^(local-)?[a-f0-9]{32}$/i.test(id)) throw new Error('Invalid Minecraft account ID.'); return action(id); });
 }
 handle('minecraft-accounts:local', (_event, name) => addLocalAccount(name));
-handle('minecraft:status', () => ({ state: getMinecraftState(), ...activeLaunch }));
+handle('minecraft:status', () => ({ state: getMinecraftState(), lastError: lastLaunchMessage, ...activeLaunch }));
 // Fixed-purpose Supabase session storage. Minecraft credentials never use this IPC.
 handle('social-session:read', () => readSecure('supabase-session'));
 handle('social-session:write', (_event, value) => { if (typeof value !== 'string' || value.length > 131072) throw new Error('Invalid social session.'); return writeSecure('supabase-session', value); });
@@ -706,6 +731,7 @@ window.novexConsole = {
 </html>`;
 
 
+    consoleWindow.webContents.once('did-finish-load', () => { if(recentGameLog) sendConsoleLog(recentGameLog); });
     consoleWindow.loadURL(
         `data:text/html;charset=UTF-8,${encodeURIComponent(
             html
@@ -1101,12 +1127,25 @@ function sendInstallProgress(
 handle('minecraft:launch', async (_event, options) => {
     if (launchPending || isMinecraftRunning()) throw new Error('Minecraft is already starting or running.');
     launchPending = true;
+    let identity;
+    let phase = 'validate-instance';
     try {
         const validated = launchOptions(options);
-        const identity = await getLaunchIdentity();
+        phase = 'resolve-launch-identity';
+        identity = await getLaunchIdentity();
+        phase = 'prepare-and-spawn';
         activeLaunch = { instanceDirectory: validated.instanceDirectory, instanceId: typeof options.instanceId === 'string' ? options.instanceId : null, accountId: identity.accountId };
         return await launchMinecraft({ ...validated, ...identity, onLog: gameLog, onState: gameState });
-    } catch (error) { activeLaunch = null; throw error; }
+    } catch (error) {
+        activeLaunch = null;
+        // Account code already converts MSAL response errors to curated messages.
+        const safeError = launchDiagnostics.describeError(error,[identity?.accessToken]);
+        await minecraftDiagnostic(JSON.stringify({stage:'minecraft:launch',phase,error:safeError}));
+        // Return a sanitized, useful message; the full exception stays in the log.
+        const safe = new Error(safeError.message || 'Minecraft could not start. See Novex logs.');
+        safe.code = error.code;
+        throw safe;
+    }
     finally { launchPending = false; updateLifecycle(); }
 });
 

@@ -19,14 +19,14 @@ export function rulesAllowed(entry, platform = process.platform, arch = process.
     return allowed;
 }
 export function javaMajor(output) {
-    const match = /(?:version\s+|openjdk\s+)(?:")?(\d+)(?:\.(\d+))?/i.exec(output);
+    const match = /(?:^|\n)(?:openjdk|java)\s+(?:version\s+)?"?(\d+)(?:\.(\d+))?/i.exec(output);
     return match ? Number(match[1] === '1' ? match[2] : match[1]) : 0;
 }
-export async function discoverJava(manual = '', required = 8) {
+export async function listJava(manual = '', onlyManual = false) {
     const binary = process.platform === 'win32' ? 'java.exe' : 'java';
     const candidates = [];
     if (manual) candidates.push(manual);
-    else {
+    if (!manual || !onlyManual) {
         for (const home of [process.env.JAVA_HOME, process.env.JDK_HOME].filter(Boolean)) candidates.push(path.join(home, 'bin', binary));
         for (const dir of (process.env.PATH || '').split(path.delimiter).filter(Boolean)) candidates.push(path.join(dir.replace(/^"|"$/g, ''), binary));
         const roots = process.platform === 'win32'
@@ -46,12 +46,23 @@ export async function discoverJava(manual = '', required = 8) {
             const output = stdout + stderr;
             const major = javaMajor(output);
             if (/os\.arch\s*=\s*(?:x86|i[3-6]86)\s/m.test(output)) continue;
-            if (major) found.push({ path: candidate, major });
+            if (major) found.push({ path: probe, major });
         } catch { /* Continue through unavailable installations. */ }
     }
+    return [...new Map(await Promise.all(found.map(async java => [await fs.realpath(java.path), java]))).values()];
+}
+export async function discoverJava(manual = '', required = 8) {
+    const found = await listJava(manual, true);
     const exact = found.find(java => java.major === required);
     if (exact) return exact;
     // Prefer the metadata's major: older Minecraft often fails with newer Java.
     if (found.length) throw new Error(`Minecraft requires Java ${required} (64-bit). Found Java ${[...new Set(found.map(j => j.major))].join(', ')}. Select a compatible Java in Settings.`);
     throw new Error(manual ? 'The selected Java could not run. Check its path and executable permissions in Settings.' : `Java ${required} (64-bit) was not found. Install it for your user or select an existing Java in Settings.`);
+}
+
+// Keep Windows command lines short without shell quoting; Java resolves these
+// paths against the instance cwd. Linux retains its existing absolute paths.
+export function launchClasspath(entries, cwd, platform = process.platform) {
+    const paths = platform === 'win32' ? path.win32 : path.posix;
+    return entries.map(entry => platform === 'win32' ? paths.relative(cwd, entry) : entry).join(paths.delimiter);
 }

@@ -1,3 +1,4 @@
+import {getInstances, saveInstances} from "../services/instances";
 import NovexSelect from "../components/NovexSelect";
 import { useDialogs } from "../components/Dialogs";
 import MinecraftAccounts from "../components/MinecraftAccounts";
@@ -72,6 +73,19 @@ function Instances({
     }, []);
 
     const { notice } = useDialogs();
+    const [sort, setSort] = useState(localStorage.getItem('novex-instance-sort') || 'favorites');
+    const [cloning, setCloning] = useState('');
+    const [cloneProgress, setCloneProgress] = useState('');
+    useEffect(() => window.novex.utilities.onProgress(setCloneProgress), []);
+    const sortedInstances = [...instances].sort((a,b) => sort === 'recent' ? (b.lastPlayedAt || 0)-(a.lastPlayedAt || 0) : sort === 'created' ? b.createdAt-a.createdAt : sort === 'favorites' ? Number(!!b.favorite)-Number(!!a.favorite) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
+    async function cloneInstance(instance: MinecraftInstance) {
+        setCloning(instance.id); setCloneProgress('Copying instance…');
+        try {
+            const result = await window.novex.utilities.run('clone', instance);
+            if(result.instance) {saveInstances([...getInstances(), {...result.instance, icon:instance.icon, notes:instance.notes, group:instance.group}]);onInstancesChanged();}
+        } catch(error) {void notice(error instanceof Error ? error.message : 'Unable to clone this instance.');}
+        finally {setCloning('');setCloneProgress('');}
+    }
     const [runningInstanceId, setRunningInstanceId] =
         useState<string | null>(null);
 
@@ -251,6 +265,7 @@ function Instances({
                     );
 
 
+                    if(state === 'crashed') void window.novex.minecraft.status().then(result => notice((result.lastError || 'Minecraft exited unexpectedly.') + '\nOutput is saved in Novex data/logs/novex.log.')).catch(()=>{});
                     if (
                         state === "stopped" ||
                         state === "crashed"
@@ -260,9 +275,7 @@ function Instances({
                             null
                         );
 
-                        setConsoleInstance(
-                            null
-                        );
+                        if(state === "stopped") setConsoleInstance(null);
 
                     }
 
@@ -373,6 +386,7 @@ function Instances({
 
         }
 
+        if(file.size > 256 * 1024 || !['image/png','image/jpeg','image/webp'].includes(file.type)) { void notice('Choose a PNG, JPEG or WebP icon smaller than 256 KiB.'); return; }
         const reader =
             new FileReader();
 
@@ -415,24 +429,6 @@ function Instances({
 
             void notice(
                 "Please select a Minecraft version."
-            );
-
-            return;
-
-        }
-
-
-        /*
-         * Forge and NeoForge are currently disabled.
-         */
-
-        if (
-            loader === "forge" ||
-            loader === "neoforge"
-        ) {
-
-            void notice(
-                `${formatLoader(loader)} installation is not available yet.`
             );
 
             return;
@@ -819,9 +815,12 @@ function Instances({
                     instanceId: instance.id
 
                 });
+            updateInstance(instance.id,{lastPlayedAt:Date.now()});
+            onInstancesChanged();
 
         } catch (error) {
 
+            void notice(error instanceof Error ? error.message : "Minecraft could not start. Open the console for details.");
             console.error(
                 "Failed to launch Minecraft:",
                 error
@@ -1009,6 +1008,7 @@ function Instances({
 
 
             <MinecraftAccounts compact />
+            <div className="utility-actions" style={{marginBlock:16}}><NovexSelect label="Sort instances" value={sort} options={[{value:'favorites',label:'Favorites first'},{value:'name',label:'Name'},{value:'recent',label:'Recently played'},{value:'created',label:'Recently created'}]} onChange={value=>{setSort(value);localStorage.setItem('novex-instance-sort',value);}} />{cloning && <span role="status">{cloneProgress}</span>}</div>
 
             {/* VERSION ERROR */}
 
@@ -1052,7 +1052,7 @@ function Instances({
 
                 <div className="instance-grid">
 
-                    {instances.map(
+                    {sortedInstances.map(
                         instance => {
 
                             const state =
@@ -1119,6 +1119,9 @@ function Instances({
                                             }
                                         </p>
 
+                                        <div className="utility-actions"><button className="secondary-button button-small" aria-pressed={!!instance.favorite} title="Favorite instance" onClick={()=>{updateInstance(instance.id,{favorite:!instance.favorite});onInstancesChanged();}}>{instance.favorite ? '★ Favorite' : '☆ Favorite'}</button><button className="secondary-button button-small" disabled={!!cloning || !!runningInstanceId || !!installing} onClick={()=>void cloneInstance(instance)}>{cloning===instance.id ? 'Cloning…' : 'Clone'}</button></div>
+                                        {instance.group && <p>{instance.group}</p>}
+                                        {state === 'crashed' && <p className="utility-error">Minecraft stopped unexpectedly. Open Edit → Utilities → Inspect Crash Logs.</p>}
                                         <span className="loader-badge">
 
                                             {
@@ -1331,7 +1334,7 @@ function Instances({
                                 Mod Loader
                             </label>
 
-                            <NovexSelect label="Mod loader" value={loader} onChange={value => setLoader(value as ModLoader)} options={[{value:"vanilla",label:"Vanilla"},{value:"fabric",label:"Fabric"},{value:"quilt",label:"Quilt"},{value:"forge",label:"Forge (Coming Soon)",disabled:true},{value:"neoforge",label:"NeoForge (Coming Soon)",disabled:true}]} />
+                            <NovexSelect label="Mod loader" value={loader} onChange={value => setLoader(value as ModLoader)} options={[{value:"vanilla",label:"Vanilla"},{value:"fabric",label:"Fabric"},{value:"quilt",label:"Quilt"},{value:"forge",label:"Forge"},{value:"neoforge",label:"NeoForge"}]} />
 
                         </div>
 

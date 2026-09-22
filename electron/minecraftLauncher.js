@@ -1,5 +1,9 @@
+import { repairMinecraftLibraries } from './minecraftInstaller.js';
+import { readVersionProfile } from './versionProfile.js';
+import launchDiagnostics from './launchDiagnostics.cjs';
+const { redact, describeError } = launchDiagnostics;
 import { fileURLToPath } from "node:url";
-import { rulesAllowed, discoverJava } from "./platform.js";
+import { rulesAllowed, discoverJava, launchClasspath } from "./platform.js";
 import { getSettings } from "./settings.js";
 import { resolveInside, safeSegment } from "./pathSafety.js";
 import { spawn } from "child_process";
@@ -59,8 +63,9 @@ async function readInstallationInfo(instanceDirectory) {
         );
 
         return JSON.parse(raw);
-    } catch {
-        return null;
+    } catch (cause) {
+        if(cause.code === "ENOENT") return null;
+        throw new Error("Instance installation metadata is unreadable. Repair this instance.", {cause});
     }
 }
 
@@ -173,7 +178,7 @@ function getMavenLibraryPath(
 
 async function buildClasspath(
     instanceDirectory,
-    versionData
+    versionData, clientVersion
 ) {
 
     const classpath = [];
@@ -204,6 +209,7 @@ async function buildClasspath(
                 ?.path;
 
 
+        if (!relativePath && library.downloads?.classifiers) continue;
         if (!relativePath) {
 
             relativePath =
@@ -266,9 +272,7 @@ async function buildClasspath(
      * actual Minecraft client JAR.
      */
 
-    const clientVersion =
-        versionData.inheritsFrom ||
-        versionData.id;
+    clientVersion ||= versionData.inheritsFrom || versionData.id;
 
 
     safeSegment(clientVersion, "client version");
@@ -301,9 +305,7 @@ async function buildClasspath(
     );
 
 
-    return classpath.join(
-        path.delimiter
-    );
+    return launchClasspath(classpath, instanceDirectory);
 
 }
 
@@ -549,36 +551,11 @@ async function loadVersionProfile(
         const profileVersion of uniqueVersions
     ) {
         safeSegment(profileVersion, "launch profile");
-        const versionFile =
-            path.join(
-                instanceDirectory,
-                "versions",
-                profileVersion,
-                `${profileVersion}.json`
-            );
+        // A configured loader profile is authoritative: never silently launch vanilla
+        // when its JSON or inherited base profile is missing/corrupt.
+        const profile = await readVersionProfile(instanceDirectory, profileVersion);
+        return { ...profile, launchVersion: profileVersion };
 
-        try {
-
-            const raw =
-                await fs.readFile(
-                    versionFile,
-                    "utf8"
-                );
-
-            const data =
-                JSON.parse(raw);
-
-            return {
-                data,
-                launchVersion:
-                    profileVersion
-            };
-
-        } catch {
-            /*
-             * Try the next possible profile.
-             */
-        }
     }
 
 
@@ -638,6 +615,7 @@ async function launchPrepared({
      * ========================================================
      */
 
+    onLog?.(`[Novex] Preparing launch: ${JSON.stringify({platform:process.platform,version,loader,instanceDirectory, libraries:path.join(instanceDirectory,'libraries'),assets:path.join(instanceDirectory,'assets'),natives:path.join(instanceDirectory,'natives')})}`);
     const installation =
         await readInstallationInfo(
             instanceDirectory
@@ -670,6 +648,7 @@ async function launchPrepared({
 
     const {
         data: versionData,
+        clientVersion,
         launchVersion
     } =
         await loadVersionProfile(
@@ -685,10 +664,12 @@ async function launchPrepared({
      * ========================================================
      */
 
+    onLog?.(`[Novex] Resolved profile: ${JSON.stringify({launchVersion,clientVersion,mainClass:versionData.mainClass,requiredJava:versionData.javaVersion?.majorVersion || 8,loaderVersion:installation?.loaderVersion})}`);
+    await repairMinecraftLibraries(versionData, instanceDirectory, onLog);
     const classpath =
         await buildClasspath(
             instanceDirectory,
-            versionData
+            versionData, clientVersion
         );
 
 
@@ -771,7 +752,7 @@ async function launchPrepared({
 
     // Redact before any renderer or secondary-console delivery.
     const originalLog = onLog;
-    onLog = message => originalLog?.(String(message).split(accessToken.length > 1 ? accessToken : '\0').join('[REDACTED]'));
+    onLog = message => originalLog?.(redact(message, [accessToken]));
     let jvmArguments = [];
 
 
@@ -994,8 +975,10 @@ async function launchPrepared({
      * ========================================================
      */
 
-    const java =
-        (await discoverJava((await getSettings()).javaPath, versionData.javaVersion?.majorVersion || 8)).path;
+    const requiredJava = versionData.javaVersion?.majorVersion || 8;
+    const selectedJava = (await getSettings()).javaPath;
+    onLog?.(`[Novex] Java requirement: ${requiredJava}; selected: ${selectedJava || '(automatic discovery)'}; profile: ${launchVersion}; loader version: ${installation?.loaderVersion || '(none)'}`);
+    const java = (await discoverJava(selectedJava, requiredJava)).path;
 
     if (jvmArguments.some(arg => /\$\{/.test(arg)) || gameArguments.some(arg => /\$\{/.test(arg))) throw new Error('The Minecraft launch profile has unsupported arguments. Repair this instance.');
     const finalArguments = [
@@ -1058,9 +1041,14 @@ async function launchPrepared({
      * ========================================================
      */
 
+    onLog?.(`[Novex] Platform: ${process.platform}; cwd: ${instanceDirectory}; argument characters: ${finalArguments.reduce((size,arg)=>size+arg.length+3, java.length)}`);
+    onLog?.(`[Novex] JVM arguments: ${redact(JSON.stringify(jvmArguments), [accessToken])}`);
+    // Mask the positional token before stringifying; never persist launch identity.
+    const safeGameArguments = gameArguments.map((value,index) => /^(--accessToken|--clientId|--xuid)$/i.test(gameArguments[index-1] || '') ? '[REDACTED]' : value);
+    onLog?.(`[Novex] Game arguments: ${redact(JSON.stringify(safeGameArguments), [accessToken])}`);
     const supervisor = spawn(process.execPath, [fileURLToPath(new URL('./gameSupervisor.cjs', import.meta.url))], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        detached: true, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc']
+        detached: true, windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'ignore', 'ipc']
     });
     minecraftProcess = supervisor;
     return await new Promise((resolve, reject) => {
@@ -1076,11 +1064,12 @@ async function launchPrepared({
         };
         supervisor.on('message', message => {
             if (message.type === 'log') onLog?.(message.text);
+            if(message.type === 'error') onLog?.(`[Novex] Java spawn exception: ${JSON.stringify(message.error || {code:message.code})}`);
             if (message.type === 'started') { started = true; onState?.('running'); resolve(true); }
-            if (message.type === 'error') finish('crashed', message.code === 'EACCES' ? 'Java is not executable. Check Linux file permissions.' : 'Minecraft could not start. Check Java and the instance.');
-            if (message.type === 'closed') finish(message.code === 0 || message.stopping ? 'stopped' : 'crashed', `[Novex] Minecraft exited (code ${message.code ?? message.signal}).`);
+            if (message.type === 'error') finish('crashed', `Java could not start (${message.code || 'unknown error'}). Check the selected Java, instance folder and permissions. Open the Minecraft console or Novex logs.`);
+            if (message.type === 'closed') finish(message.code === 0 || message.stopping ? 'stopped' : 'crashed', `[Novex] Minecraft exited (code ${message.code ?? 'none'}, signal ${message.signal ?? 'none'}).${message.code !== 0 && !message.stopping ? ' Open the Minecraft console or Novex logs for the Java error.' : ''}`);
         });
-        supervisor.once('error', () => finish('crashed', 'Minecraft process monitor could not start.'));
+        supervisor.once('error', error => { onLog?.(`[Novex] Monitor spawn exception: ${JSON.stringify(describeError(error,[accessToken]))}`); finish('crashed', `Minecraft process monitor could not start (${error.code || error.name}).`); });
         supervisor.once('exit', () => finish('crashed', '[Novex] Minecraft process monitor exited.'));
         supervisor.send({ type: 'launch', executable: java, args: finalArguments, cwd: instanceDirectory, secret: accessToken }, error => {
             if (error) finish('crashed', 'Minecraft process monitor could not receive launch settings.');

@@ -1,3 +1,4 @@
+import Utilities from "../components/Utilities";
 import { useDialogs } from "../components/Dialogs";
 import NovexSelect from "../components/NovexSelect";
 import UpdateNotice from "../components/UpdateNotice";
@@ -99,7 +100,7 @@ export default function Settings() {
 
 
             <MinecraftAccounts />
-            <LauncherSettings /><UpdateNotice settings />
+            <LauncherSettings /><Utilities /><UpdateNotice settings />
 
 
             <section className="card">

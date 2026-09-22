@@ -1,3 +1,4 @@
+import { identifyInstalledMods } from './modIdentity.js';
 import { validateModrinthVersion } from "./contentValidation.js";
 import { installMinecraft } from "./minecraftInstaller.js";
 import { secureFetch as fetch, verifyBuffer } from "./downloads.js";
@@ -146,7 +147,14 @@ async function versions(
 
 const safeTarget = (root, relative) => resolveInside(root, relative, false);
 
-export async function installMod({
+const installingInstances = new Set();
+export async function installMod(options) {
+    if(installingInstances.has(options.instanceDirectory)) throw new Error('A mod installation is already running for this instance.');
+    installingInstances.add(options.instanceDirectory);
+    try { return await installModChecked(options); }
+    finally { installingInstances.delete(options.instanceDirectory); }
+}
+async function installModChecked({
 
     instanceDirectory,
 
@@ -160,6 +168,8 @@ export async function installMod({
 
 }) {
 
+    const existingMods = await identifyInstalledMods(instanceDirectory);
+    const projectVersions = new Map();
     const installed =
         new Set();
 
@@ -172,6 +182,14 @@ export async function installMod({
 
     ) {
 
+        const existing = existingMods.find(entry=>entry.version.project_id===id);
+        if(existing) {
+            if(id===projectId) return; // Already installed, including disabled files.
+            if(!existing.enabled) throw new Error(`Required dependency ${existing.name} is disabled. Enable it in Installed mods first.`);
+            validateModrinthVersion(existing.version,id,gameVersion,loader);
+            if(forcedVersionId && existing.version.id!==forcedVersionId) throw new Error(`Required dependency ${existing.name} needs a different version. Review mod updates first.`);
+            return;
+        }
         const cacheKey =
             forcedVersionId ||
             id;
@@ -244,6 +262,8 @@ export async function installMod({
 
 
         validateModrinthVersion(version, id, gameVersion, loader);
+        if(projectVersions.has(id) && projectVersions.get(id)!==version.id) throw new Error('Required dependencies request conflicting versions of the same mod. No duplicate was installed.');
+        projectVersions.set(id,version.id);
         if (installed.size >= 200) throw new Error('This mod has too many required dependencies.');
         installed.add(cacheKey);
 
@@ -316,6 +336,10 @@ export async function installMod({
         }
 
 
+        const destination = safeTarget(instanceDirectory, path.join('mods', path.basename(file.filename)));
+        for(const candidate of [destination,destination+'.disabled']) {
+            if(await fs.stat(candidate).catch(error=>{if(error.code==='ENOENT')return null;throw error;})) throw new Error('This mod filename is already installed. No file was overwritten.');
+        }
         const data =
             await download(
                 file.url, file.hashes
@@ -361,7 +385,7 @@ export async function installMod({
 
             ),
 
-            data
+            data, {flag:"wx"}
 
         );
 

@@ -11,3 +11,23 @@ export async function readText(root,relativePath){const p=resolveInside(root,rel
 export async function writeText(root,relativePath,content){await fs.writeFile(resolveInside(root,relativePath),validateContent(content),"utf8");}
 
 function validateContent(content) { if (typeof content !== "string" || Buffer.byteLength(content) > 2*1024*1024) throw new Error("Text is too large to save."); return content; }
+
+export async function listInstalledMods(root) {
+    const files = await listFiles(root, 'mods').catch(error => { if(error.code === 'ENOENT') return []; throw error; });
+    return files.filter(file => file.type === 'file' && /\.jar(?:\.disabled)?$/i.test(file.name))
+        .map(file => ({name:file.name, enabled:!file.name.toLowerCase().endsWith('.disabled')}));
+}
+export async function setModEnabled(root, name, enabled) {
+    safeSegment(name, 'mod filename');
+    if(typeof enabled !== 'boolean' || !/\.jar(?:\.disabled)?$/i.test(name)) throw new Error('Select an installed mod JAR.');
+    const disabled = name.toLowerCase().endsWith('.disabled');
+    if(enabled === !disabled) return;
+    const source = resolveInside(root, `mods/${name}`);
+    const target = resolveInside(root, `mods/${enabled ? name.slice(0,-9) : name+'.disabled'}`);
+    if(!(await fs.stat(source)).isFile()) throw new Error('Select a mod file.');
+    // Atomic no-clobber rename using a hard link; never overwrite a sibling JAR.
+    try { await fs.link(source, target); }
+    catch(error) { if(error.code==='EEXIST') throw new Error('The target filename already exists. Neither mod was changed.'); throw error; }
+    try { await fs.unlink(source); }
+    catch(error) { await fs.unlink(target); throw error; }
+}

@@ -41,3 +41,29 @@ test('game survives Novex disconnect and monitor exits when game finishes', { ti
     await once(child, 'exit');
     assert.equal(await fs.readFile(result, 'utf8'), 'alive');
 });
+
+test('immediate failure retains stderr, stdout and nonzero exit code', {timeout:15000},async()=>{
+    const {child,messages}=monitor("process.stdout.write('startup\\n');process.stderr.write('native error\\n');process.exitCode=7;");
+    await once(child,'exit');
+    const logs=messages.filter(m=>m.type==='log').map(m=>m.text).join('');
+    assert.match(logs,/startup/);assert.match(logs,/native error/);
+    assert.ok(messages.some(m=>m.type==='closed'&&m.code===7));
+});
+test('monitor preserves cwd spaces and argument-array quoting without a shell', {timeout:15000},async t=>{
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'novex path spaces '));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+    const child=spawn(process.execPath,[script],{stdio:['ignore','ignore','ignore','ipc']});
+    const messages=[];child.on('message',message=>messages.push(message));
+    const argument='C:\\Users\\A Player\\library.jar;other.jar & literal "quote"';
+    child.send({type:'launch',executable:process.execPath,args:['-e',"console.log(JSON.stringify({cwd:process.cwd(),arg:process.argv[1]}))",argument],cwd:root,secret:''});
+    await once(child,'exit');
+    const payload=JSON.parse(messages.filter(m=>m.type==='log').map(m=>m.text).join(''));
+    assert.equal(payload.cwd,root);assert.equal(payload.arg,argument);
+});
+
+test('spawn failure reports the actual OS error without credentials', {timeout:15000},async()=>{
+ const child=spawn(process.execPath,[script],{stdio:['ignore','ignore','ignore','ipc']});const messages=[];
+ child.on('message',message=>messages.push(message));
+ child.send({type:'launch',executable:path.join(os.tmpdir(),'novex-nonexistent-java-executable'),args:['--accessToken','secret-token'],cwd:os.tmpdir(),secret:'secret-token'});
+ await once(child,'exit');
+ const error=messages.find(message=>message.type==='error');assert.equal(error.error.code,'ENOENT');assert.match(error.error.message,/ENOENT/);assert.ok(error.error.stack);assert.equal(JSON.stringify(messages).includes('secret-token'),false);
+});

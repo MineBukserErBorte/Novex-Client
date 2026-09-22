@@ -1,6 +1,7 @@
 // A standalone Node process (Electron RUN_AS_NODE in production). It owns Java's
 // pipes so leaving Novex never closes the game's stdout/stderr readers.
 const { spawn } = require('node:child_process');
+const {redact,describeError} = require('./launchDiagnostics.cjs');
 let game;
 let stopping = false;
 let timer;
@@ -24,11 +25,12 @@ process.on('message', message => {
     if (message.type !== 'launch' || game) return;
     clearTimeout(bootstrap);
     const { executable, args, cwd, secret } = message;
-    game = spawn(executable, args, { cwd, detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    try { game = spawn(executable, args, { cwd, detached: true, windowsHide: true, shell: false, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch(error) { notify({type:'error',code:error.code,error:describeError(error,[secret])}); if(process.connected) process.disconnect(); return; }
     for (const stream of [game.stdout, game.stderr]) {
         stream.setEncoding('utf8');
         let pending = '';
-        const emit = text => notify({ type: 'log', text: secret?.length > 1 ? text.split(secret).join('[REDACTED]') : text });
+        const emit = text => notify({ type: 'log', text: redact(text,[secret]) });
         stream.on('data', chunk => {
             if (!process.connected) { pending = ''; return; }
             pending += chunk;
@@ -39,7 +41,7 @@ process.on('message', message => {
         stream.on('end', () => { if (pending) emit(pending); });
     }
     game.once('spawn', () => notify({ type: 'started', pid: game.pid }));
-    game.once('error', error => notify({ type: 'error', code: error.code }));
+    game.once('error', error => notify({ type: 'error', code: error.code, error:describeError(error,[secret]) }));
     game.once('close', (code, signal) => {
         clearTimeout(timer);
         notify({ type: 'closed', code, signal, stopping });

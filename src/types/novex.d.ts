@@ -62,6 +62,7 @@ declare global {
     interface Window {
 
         novex: {
+            utilities: { run: (action: string, instance?: MinecraftInstance | null, input?: Record<string, unknown>) => Promise<import("../components/Utilities").UtilityResult>; onProgress: (callback: (message: string) => void) => () => void };
 
             updates: { check: () => Promise<UpdateStatus>; open: () => Promise<void> };
             openExternal: (url: string) => Promise<void>;
@@ -201,6 +202,9 @@ declare global {
              */
 
             mods: {
+                installedProjects(instance: MinecraftInstance): Promise<string[]>;
+                list(instance: MinecraftInstance): Promise<{name:string; enabled:boolean}[]>;
+                setEnabled(instance: MinecraftInstance, name: string, enabled: boolean): Promise<void>;
 
                 install(
 
@@ -289,7 +293,7 @@ declare global {
              */
 
             minecraft: {
-                status(): Promise<{ state: MinecraftState; instanceId?: string; instanceDirectory?: string; accountId?: string }>;
+                status(): Promise<{ state: MinecraftState; lastError?: string; instanceId?: string; instanceDirectory?: string; accountId?: string }>;
 
                 install(
 

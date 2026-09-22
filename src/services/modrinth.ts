@@ -336,3 +336,22 @@ export async function getProject(
     return response.json();
 
 }
+
+export async function getRequiredDependencyNames(version: ModrinthVersion): Promise<string[]> {
+    const required = (version.dependencies || []).filter(item => item.dependency_type === 'required');
+    if(required.length > 30) return [`${required.length} required dependencies (validated by the installer)`];
+    return Promise.all(required.map(async dependency => {
+        try {
+            let id = dependency.project_id;
+            if(!id && dependency.version_id) {
+                const response = await fetch(`${API}/version/${encodeURIComponent(dependency.version_id)}`, {signal:AbortSignal.timeout(10000)});
+                if(!response.ok) throw new Error('Unavailable');
+                id = (await response.json()).project_id;
+            }
+            if(!id) return 'Required dependency (identity checked during installation)';
+            const response = await fetch(`${API}/project/${encodeURIComponent(id)}`, {signal:AbortSignal.timeout(10000)});
+            if(!response.ok) throw new Error('Unavailable');
+            return String((await response.json()).title || id);
+        } catch {return `Required dependency ${dependency.project_id || dependency.version_id || '(unavailable)'}`;}
+    }));
+}

@@ -1,3 +1,5 @@
+import InstalledMods from "../components/InstalledMods";
+import { useDialogs } from "../components/Dialogs";
 import { uiError } from "../services/uiError";
 import ContentSource from "../components/ContentSource";
 import {
@@ -9,7 +11,7 @@ import {
 import {
     browseProjects,
     searchProjects,
-    getProjectVersions,
+    getProjectVersions, getRequiredDependencyNames,
     type ModrinthProject,
     type ModrinthVersion
 } from "../services/modrinth";
@@ -26,6 +28,10 @@ function ModrinthMods({
     instances
 }: Props) {
 
+    const {confirm} = useDialogs();
+    const [installedRevision, setInstalledRevision] = useState(0);
+    const [installedProjects, setInstalledProjects] = useState<string[]>([]);
+    const [checkingInstalled, setCheckingInstalled] = useState(false);
     const [mods, setMods] =
         useState<ModrinthProject[]>([]);
 
@@ -62,6 +68,17 @@ function ModrinthMods({
                 instance.id === selectedInstanceId
         );
 
+
+    useEffect(()=>{
+        let cancelled=false;
+        setInstalledProjects([]);
+        if(!selectedInstance)return;
+        setCheckingInstalled(true);
+        window.novex.mods.installedProjects(selectedInstance).then(projects=>{if(!cancelled)setInstalledProjects(projects);})
+            .catch(error=>{if(!cancelled)setError(uiError(error,'Unable to check installed mods.'));})
+            .finally(()=>{if(!cancelled)setCheckingInstalled(false);});
+        return ()=>{cancelled=true;};
+    },[selectedInstance?.id,installedRevision]);
 
     const gameVersion =
         selectedInstance?.minecraftVersion ||
@@ -228,11 +245,14 @@ function ModrinthMods({
                 versions[0];
 
 
+            const required = await getRequiredDependencyNames(version);
+            if(required.length && !await confirm(`Required dependencies:\n${required.join('\n')}\n\nInstall this mod with its required dependencies? Optional dependencies are not installed.`, 'Install with dependencies', false)) return;
             await window.novex.mods.install(
                 selectedInstance,
                 mod.project_id,
                 version.id
             );
+            setInstalledRevision(value=>value+1);
 
         } catch (err) {
 
@@ -346,6 +366,8 @@ function ModrinthMods({
             }}
         >
 
+            <p className="utility-muted">Showing {loader === "neoforge" ? "NeoForge" : loader === "forge" ? "Forge" : loader} mods for Minecraft {gameVersion}. Select the matching instance to change the loader filter.</p>
+            {selectedInstance && <InstalledMods key={selectedInstance.id} instance={selectedInstance} revision={installedRevision} />}
             {/* =================================================
                 HEADER
                ================================================= */}
@@ -962,6 +984,7 @@ function ModrinthMods({
                     {mods.map(
                         mod => {
 
+                            const alreadyInstalled = installedProjects.includes(mod.project_id);
                             const isInstalling =
                                 installing ===
                                 mod.project_id;
@@ -1138,7 +1161,7 @@ function ModrinthMods({
                                                 mod
                                             )
                                         }
-                                        disabled={Boolean(installing)}
+                                        disabled={Boolean(installing) || checkingInstalled || alreadyInstalled}
                                         style={{
                                             width: "100%",
                                             height: 38,
@@ -1167,9 +1190,7 @@ function ModrinthMods({
                                                 "all 0.15s ease"
                                         }}
                                     >
-                                        {isInstalling
-                                            ? "Installing..."
-                                            : "Install"}
+                                        {alreadyInstalled ? "Installed" : checkingInstalled ? "Checking…" : isInstalling ? "Installing..." : "Install"}
                                     </button>
 
                                 </div>

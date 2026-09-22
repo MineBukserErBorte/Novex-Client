@@ -138,3 +138,23 @@ input[type=checkbox] { width:17px; height:17px; min-height:0; accent-color:#aeb5
 .admin-form > :is(h2,.settings-field,.admin-inline,p,.account-actions), .admin-form > label:has(textarea) { grid-column:1 / -1; }
 .admin-inline > label:has(input[type=checkbox]) { flex-direction:row; align-items:center; gap:8px; }
 @media(max-width:600px) { .admin-form { grid-template-columns:1fr; } }
+
+/* Local utilities reuse the compact controls and card palette. */
+.utility-panel { padding: 20px; margin-bottom: 20px; min-width: 0; }
+.utility-panel h2 { margin-top: 0; font-size: 20px; }
+.utility-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.utility-muted, .utility-description p { color: var(--text-muted, #999); font-size: 12px; line-height: 1.5; }
+.utility-error { color: #fca5a5; overflow-wrap: anywhere; }
+.utility-list { display: grid; gap: 8px; margin-block: 12px; }
+.utility-row { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; min-width: 0; }
+.utility-description { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.utility-description strong { font-size: 13px; }
+.utility-description p { margin: 4px 0; white-space: pre-wrap; }
+.utility-gallery { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(240px,100%),1fr)); gap: 12px; margin-block: 16px; }
+.utility-gallery .utility-row { display: flex; flex-direction: column; align-items: stretch; }
+.utility-gallery img { width: 100%; object-fit: contain; background: #141419; border-radius: 6px; }
+.utility-form { display: grid; gap: 12px; margin-top: 20px; max-width: 640px; }
+.utility-form label { display: grid; gap: 6px; font-size: 13px; }
+.utility-form input, .utility-form textarea { width: 100%; box-sizing: border-box; }
+.utility-form > button { justify-self: start; }
+@media (max-width: 800px) { .utility-list .utility-row { flex-direction: column; align-items: stretch; } }

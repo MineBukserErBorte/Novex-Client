@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld(
     "novex",
     {
 
+        utilities: { run: (action, instance = null, input = {}) => ipcRenderer.invoke('utilities:run', action, instance, input),
+            onProgress: callback => { const listener = (_event, message) => callback(message); ipcRenderer.on('utilities:progress', listener); return () => ipcRenderer.removeListener('utilities:progress', listener); } },
         openExternal: url => ipcRenderer.invoke('external:open', url),
         updates: { check: () => ipcRenderer.invoke('updates:check'), open: () => ipcRenderer.invoke('updates:open') },
         settings: {
@@ -145,6 +147,9 @@ contextBridge.exposeInMainWorld(
          */
 
         mods: {
+            installedProjects: instance => ipcRenderer.invoke("mods:installedProjects", instance),
+            list: instance => ipcRenderer.invoke("mods:list", instance),
+            setEnabled: (instance, name, enabled) => ipcRenderer.invoke("mods:setEnabled", instance, name, enabled),
 
             install: (
                 instance,

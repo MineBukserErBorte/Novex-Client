@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {readVersionProfile} from '../electron/versionProfile.js';
+import diagnostics from '../electron/launchDiagnostics.cjs';
+const {redact,describeError}=diagnostics;
+test('launch exceptions retain details and cause without tokens or arbitrary properties',()=>{
+ const token='private-access-token';
+ const cause=Object.assign(new Error(`spawn ${token}`),{code:'ENOENT',spawnargs:['--accessToken',token]});
+ const error=new Error(`Could not launch ${token}`,{cause});error.password='private-password';
+ const detail=describeError(error,[token]);
+ assert.match(detail.message,/Could not launch/);assert.match(detail.stack,/Error:/);assert.equal(detail.cause.code,'ENOENT');
+ assert.equal(JSON.stringify(detail).includes(token),false);assert.equal(JSON.stringify(detail).includes('private-password'),false);
+ assert.equal(redact('Bearer abcdef password=secret https://example.invalid/?code=code123&x=1'),'Bearer [REDACTED] password=[REDACTED] https://example.invalid/?code=[REDACTED]&x=1');
+});
+test('Forge inherits required Java, assets, JVM/game arguments and client JAR from vanilla',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'novex-profile-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const save=async(id,value)=>{const dir=path.join(root,'versions',id);await fs.mkdir(dir,{recursive:true});await fs.writeFile(path.join(dir,id+'.json'),JSON.stringify(value));};
+ const base={id:'1.21.1',javaVersion:{majorVersion:21},assetIndex:{id:'17'},libraries:[{name:'test:lib:1'}],arguments:{jvm:['-cp','${classpath}'],game:['--username','${auth_player_name}']},mainClass:'vanilla.Main'};
+ await save('1.21.1',base);
+ await save('forge',{id:'forge',inheritsFrom:'1.21.1',mainClass:'forge.Main',libraries:[{name:'test:lib:2'}],arguments:{game:['--launchTarget','forgeclient']}});
+ const {data,clientVersion}=await readVersionProfile(root,'forge');
+ assert.equal(data.javaVersion.majorVersion,21);assert.equal(data.mainClass,'forge.Main');assert.equal(data.assetIndex.id,'17');assert.equal(clientVersion,'1.21.1');
+ assert.deepEqual(data.arguments.jvm,base.arguments.jvm);assert.deepEqual(data.arguments.game,[...base.arguments.game,'--launchTarget','forgeclient']);assert.deepEqual(data.libraries,[{name:'test:lib:2'}]);
+ await save('fabric',{...base,id:'fabric',inheritsFrom:'1.21.1',mainClass:'fabric.Main'});
+ const fabric=await readVersionProfile(root,'fabric');assert.deepEqual(fabric.data.arguments,base.arguments);assert.equal(fabric.clientVersion,'1.21.1');
+ await save('broken',{id:'broken',inheritsFrom:'missing'});await assert.rejects(readVersionProfile(root,'broken'),e=>e.message.includes('missing')&&e.cause.code==='ENOENT');
+ await save('loop',{id:'loop',inheritsFrom:'loop'});await assert.rejects(readVersionProfile(root,'loop'),/cyclic/);
+ await assert.rejects(readVersionProfile(root,'../outside'));
+});

@@ -144,3 +144,4 @@ export async function getInstanceDirectory(instance) {
 
     return await getInstancePath(instance);
 }
+export async function registeredDirectories() { await loadRegistry(); return [...new Set(Object.values(registry))].map(assertNoSymlinks); }

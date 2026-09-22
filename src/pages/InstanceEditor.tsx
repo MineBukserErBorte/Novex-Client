@@ -1,3 +1,4 @@
+import Utilities from "../components/Utilities";
 import ContentSource from "../components/ContentSource";
 import { useState } from "react";
 import Mods from "./Mods";
@@ -16,11 +17,11 @@ type Tab =
     | "shaders"
     | "files"
     | "config"
-    | "settings";
+    | "settings" | "tools" | "worlds" | "screenshots";
 
 export default function InstanceEditor({
     instance,
-    onBack
+    onBack, onInstancesChanged
 }: Props) {
     const [fileDirectory, setFileDirectory] = useState<"" | "shaderpacks" | "config">("");
     const [tab, setTab] = useState<Tab>("mods");
@@ -49,6 +50,7 @@ export default function InstanceEditor({
         id: Tab;
         label: string;
     }[] = [
+        {id:"tools",label:"Utilities"}, {id:"worlds",label:"Worlds"}, {id:"screenshots",label:"Screenshots"},
         {
             id: "mods",
             label: "Mods"
@@ -268,6 +270,7 @@ export default function InstanceEditor({
                 }}
             >
 
+                {(tab === "tools" || tab === "worlds" || tab === "screenshots") && <Utilities key={instance.id+tab} instance={instance} mode={tab} onInstancesChanged={onInstancesChanged} />}
                 {/* MODS */}
 
                 {tab === "mods" && (

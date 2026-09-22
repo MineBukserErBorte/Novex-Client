@@ -40,3 +40,5 @@ export async function setBackgroundSettings(input) {
     if (!input || !['background', 'exit'].includes(input.backgroundMode) || typeof input.backgroundNotification !== 'boolean') throw new Error('Invalid background settings.');
     return save({ backgroundMode: input.backgroundMode, backgroundNotification: input.backgroundNotification });
 }
+
+export const setDetectedJava = javaPath => save({ javaPath });

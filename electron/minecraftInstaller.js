@@ -1,5 +1,6 @@
+import { prepareLoaderClient, neoForgeVersionPrefix } from './loaderSupport.js';
 import { secureFetch as fetch } from "./downloads.js";
-import { installNatives } from "./natives.js";
+import { installNatives, applicableLibraries, downloadLibraryArtifact, ensureLibraryArtifacts } from "./natives.js";
 import { rulesAllowed, discoverJava } from "./platform.js";
 import { getSettings } from "./settings.js";
 import { resolveInside, safeSegment } from "./pathSafety.js";
@@ -483,21 +484,15 @@ async function installProfileLibrary({
 
     if (artifact) {
 
-        const destination =
-            resolveInside(path.join(instanceDirectory, "libraries"), artifact.path, false);
-
-
-        await downloadFile(
-            artifact.url,
-            destination,
-            artifact.sha1
-        );
+        await downloadLibraryArtifact(library, artifact, instanceDirectory, downloadFile);
 
 
         return true;
 
     }
 
+
+    if (library.downloads?.classifiers) return false;
 
     const relativePath =
         getMavenLibraryPath(
@@ -777,9 +772,7 @@ async function installVanilla({
 
 
     const allowedLibraries =
-        libraries.filter(
-            isLibraryAllowed
-        );
+        applicableLibraries(libraries);
 
 
     let libraryNumber = 0;
@@ -801,10 +794,6 @@ async function installVanilla({
         }
 
 
-        const libraryPath =
-            resolveInside(path.join(instanceDirectory, "libraries"), artifact.path, false);
-
-
         onProgress?.({
 
             stage: "libraries",
@@ -822,15 +811,7 @@ async function installVanilla({
 
 
         const downloaded =
-            await downloadFile(
-
-                artifact.url,
-
-                libraryPath,
-
-                artifact.sha1
-
-            );
+            await downloadLibraryArtifact(library, artifact, instanceDirectory, downloadFile);
 
 
         onProgress?.({
@@ -1303,9 +1284,7 @@ async function installProfileLibraries({
 
 
     const allowedLibraries =
-        libraries.filter(
-            isLibraryAllowed
-        );
+        applicableLibraries(libraries);
 
 
     let number = 0;
@@ -1699,6 +1678,7 @@ async function runJavaInstaller({
     loaderVersion
 }) {
 
+    await prepareLoaderClient(instanceDirectory);
     const java =
         (await discoverJava((await getSettings()).javaPath, currentRequiredJava)).path;
 
@@ -2173,36 +2153,13 @@ async function getNeoForgeLoaderVersion(
      * Minecraft 1.21.11 -> 21.11.x
      */
 
-    const parts =
-        minecraftVersion.split(".");
-
-
-    let prefix =
-        minecraftVersion;
-
-
-    if (
-        parts.length >= 3
-    ) {
-
-        prefix =
-            `${parts[1]}.${parts[2]}`;
-
-    } else if (
-        parts.length === 2
-    ) {
-
-        prefix =
-            `${parts[1]}`;
-
-    }
-
+    const prefix = neoForgeVersionPrefix(minecraftVersion);
 
     const compatible =
         versions.filter(
             candidate =>
                 candidate.startsWith(
-                    `${prefix}.`
+                    prefix
                 )
         );
 
@@ -2540,7 +2497,7 @@ async function findLoaderProfile(
 
         const matchesLoader =
             loader === "forge"
-                ? lower.includes("forge")
+                ? lower.includes("forge") && !lower.includes("neoforge")
                 : lower.includes("neoforge");
 
 
@@ -2581,6 +2538,7 @@ async function findLoaderProfile(
              * requested Minecraft version.
              */
 
+            if(profile.inheritsFrom !== minecraftVersion) continue;
             let score = 0;
 
 
@@ -3119,4 +3077,20 @@ export function cancelMinecraftInstall() {
         return true;
     }
     return false;
+}
+// Repair only libraries for this OS, using the stored official/inherited profile.
+export async function repairMinecraftLibraries(profile, instanceDirectory, onLog) {
+    const repaired = await ensureLibraryArtifacts(profile, instanceDirectory, downloadFile);
+    for (const library of applicableLibraries(profile.libraries || [])) {
+        // Loader-generated libraries may not have download metadata. Preserve existing outputs.
+        if (library.downloads?.artifact || library.downloads?.classifiers) continue;
+        const relativePath = getMavenLibraryPath(library.name);
+        if (!relativePath) continue;
+        try { await fs.access(resolveInside(path.join(instanceDirectory, 'libraries'), relativePath, false)); }
+        catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+            await installProfileLibrary({ library, instanceDirectory });
+        }
+    }
+    onLog?.(`[Novex] Current-platform libraries verified (${process.platform}); repaired ${repaired} classpath artifacts.`);
 }
